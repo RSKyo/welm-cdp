@@ -12,5 +12,8 @@
   },
   "keywords": [],
   "author": "",
-  "license": "UNLICENSED"
+  "license": "UNLICENSED",
+  "dependencies": {
+    "chrome-remote-interface": "^0.34.0"
+  }
 }

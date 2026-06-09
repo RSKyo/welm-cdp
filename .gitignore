@@ -1,5 +1,33 @@
-# runtime binaries (ffmpeg / ffprobe etc.)
-# macOS system files
+# dependencies
+node_modules/
+
+# lock files（可选）
+# package-lock.json
+
+# logs
+*.log
+npm-debug.log*
+
+# macOS
 .DS_Store
-node/node_modules/
-node/.npm/
+
+# vscode
+.vscode/
+
+# local env
+.env
+.env.*
+
+# temporary
+tmp/
+temp/
+
+# coverage
+coverage/
+
+# test output
+.nyc_output/
+
+# chrome profile
+chrome-profile/
+user-data-dir/
