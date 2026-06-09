@@ -1,29 +1,9 @@
-import { ERROR_CODE, createError, isClientError } from "./error.js";
+import { ERROR_CODE, isClientError } from "./error.js";
+import { log } from "./log.js"
 
 const PROTOCOL_ERROR_DEFAULTS = {
   includeStack: false,
 };
-
-/**
- * 判断是否为协议结果对象
- */
-function isProtocolResult(x) {
-  return (
-    x !== null &&
-    typeof x === "object" &&
-    !Array.isArray(x) &&
-    typeof x.ok === "boolean" &&
-    (x.ok ? "value" in x : "error" in x)
-  );
-}
-
-function requireProtocolResult(x) {
-  if (!isProtocolResult(x)) {
-    throw createError(ERROR_CODE.INVALID, "invalid protocol result");
-  }
-
-  return x;
-}
 
 function normalizeProtocolError(error, options = {}) {
   const errorPayloadConfig = {
@@ -90,14 +70,14 @@ function writeProtocolJson(payload) {
 /**
  * 构造成功结果
  */
-export function ok(value = null, meta) {
+function ok(value = null, meta) {
   return meta === undefined ? { ok: true, value } : { ok: true, value, meta };
 }
 
 /**
  * 构造失败结果（自动标准化 error）
  */
-export function fail(error = null, meta) {
+function fail(error = null, meta) {
   const err = normalizeProtocolError(error ?? "unknown error");
 
   return meta === undefined
@@ -113,55 +93,22 @@ export function fail(error = null, meta) {
  */
 export async function run(main, options = {}) {
   try {
-    const result = requireProtocolResult(await main());
+    const result = await main();
 
     if (options.json) {
-      writeProtocolJson(result);
+      writeProtocolJson(ok(result));
     }
 
     process.exitCode = 0;
   } catch (error) {
-    const result = fail(error);
+    log.error(error?.message ?? String(error), options);
+    
+    const result = error;
 
     if (options.json) {
-      writeProtocolJson(result);
+      writeProtocolJson(fail(result));
     }
 
     process.exitCode = 1;
   }
-}
-
-let lastLength = 0;
-
-export function print(text = "", options = {}) {
-  if (options?.json) {
-    return;
-  }
-
-  if (lastLength > 0) {
-    process.stdout.write("\n");
-  }
-
-  process.stdout.write(`${text}\n`);
-  lastLength = 0;
-}
-
-export function printUpdate(text = "", options = {}) {
-  if (options?.json) {
-    return;
-  }
-
-  const padding = Math.max(0, lastLength - text.length);
-  process.stdout.write(`\r${text}${" ".repeat(padding)}`);
-  lastLength = text.length;
-}
-
-export function printDone(text = "", options = {}) {
-  if (options?.json) {
-    return;
-  }
-
-  const padding = Math.max(0, lastLength - text.length);
-  process.stdout.write(`\r${text}${" ".repeat(padding)}\n`);
-  lastLength = 0;
 }

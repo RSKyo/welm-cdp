@@ -8,18 +8,31 @@ import {
   DEFAULT_TIMEOUT,
   DEFAULT_INTERVAL,
 } from "../infra/config.js";
+
+import { log } from "../infra/log.js";
 import { ERROR_CODE, createError } from "../infra/error.js";
 import { toBool, sleep } from "../infra/utils.js";
 import { assertNonBlank, assertHttpUrl } from "../infra/validate.js";
 
 import {
-  listWebPageTargets,
-  createTarget,
+  TARGET_TYPE,
+  listTargets,
+  getTarget,
+  findTarget,
   activateTarget,
+  openTarget,
   closeTarget,
 } from "./target.js";
 import { evaluate } from "./runtime.js";
 import { waitDom, waitLoad } from "./wait.js";
+
+function normalizePage(target) {
+  return {
+    id: target.id,
+    title: target.title ?? "",
+    url: target.url ?? "",
+  };
+}
 
 /**
  * 获取当前平台默认的 Chrome 可执行文件路径。
@@ -106,18 +119,6 @@ async function waitCdpReady(options = {}) {
 }
 
 /**
- * 获取默认 Chrome 调试配置信息。
- */
-export function getDebuggingInfo() {
-  return {
-    chromeBin: getChromeBin(),
-    userDataDir: getChromeUserDataDir(),
-    host: DEFAULT_HOST,
-    port: DEFAULT_PORT,
-  };
-}
-
-/**
  * 启动带 CDP 调试端口的 Chrome。
  */
 async function launchChrome(options = {}) {
@@ -149,29 +150,26 @@ async function launchChrome(options = {}) {
  * 确保 Chrome 已启动，并等待 CDP 服务可访问。
  */
 export async function ensureChrome(options = {}) {
+  const host = options.host ?? DEFAULT_HOST;
+  const port = options.port ?? DEFAULT_PORT;
+  const chromeBin = await checkChromeBin(options.chromeBin ?? getChromeBin());
+  const userDataDir = options.userDataDir ?? getChromeUserDataDir();
+
   if (!(await isCdpReady(options))) {
+    log.progress(`Starting Chrome...`, options);
     await launchChrome(options);
+    log.progress(`Waiting for Chrome CDP service...`, options);
     await waitCdpReady(options);
   }
 
-  return true;
-}
+  log.info(`Chrome is ready`, options);
 
-/**
- * 确保 targetId 对应的页面仍然存在，否则抛错
- */
-async function assertTargetExists(targetId, options = {}) {
-  targetId = assertNonBlank(targetId, "targetId");
-
-  const targets = await listChromePages(options);
-  const exists = targets.some((t) => t.id === targetId);
-  if (!exists) {
-    throw createError(
-      ERROR_CODE.NOT_FOUND,
-      "chrome page not found or already closed",
-      { targetId },
-    );
-  }
+  return {
+    host,
+    port,
+    chromeBin,
+    userDataDir,
+  };
 }
 
 /**
@@ -233,7 +231,7 @@ async function waitChromePage(targetId, options = {}) {
   const readyState = await getPageReadyState(targetId, options);
 
   if (isPageReady(readyState, mode)) {
-    return targetId;
+    return;
   }
 
   try {
@@ -250,61 +248,56 @@ async function waitChromePage(targetId, options = {}) {
     const currentReadyState = await getPageReadyState(targetId, options);
 
     if (isPageReady(currentReadyState, mode)) {
-      return targetId;
+      return;
     }
 
     throw error;
   }
-
-  return targetId;
 }
 
 /**
  * 获取所有 Chrome 普通网页 target。
  */
 export async function listChromePages(options = {}) {
-  await ensureChrome(options);
+  const targets = await listTargets({ ...options, type: TARGET_TYPE.WEBPAGE });
 
-  return listWebPageTargets(options);
+  return targets.map(normalizePage);
 }
 
-/**
- * 查找 Chrome 网页并返回 targetId；找不到抛错
- */
+export async function getChromePage(targetId, options = {}) {
+  targetId = assertNonBlank(targetId, "targetId");
+
+  const target = await getTarget(targetId, {
+    ...options,
+    type: TARGET_TYPE.WEBPAGE,
+  });
+
+  return normalizePage(target);
+}
+
 export async function findChromePage(keyword, options = {}) {
   keyword = assertNonBlank(keyword, "keyword");
-  await ensureChrome(options);
 
-  const targets = await listChromePages(options);
-
-  const target = targets.find(
-    (target) => target.title.includes(keyword) || target.url.includes(keyword),
-  );
-
-  if (!target) {
-    throw createError(ERROR_CODE.NOT_FOUND, "chrome page not found", {
-      keyword,
-    });
+  const target = await findTarget(keyword, {
+    ...options,
+    type: TARGET_TYPE.WEBPAGE,
+  });
+  if (target) {
+    return normalizePage(target);
   }
 
-  if (toBool(options.activate) === true) {
-    await activateTarget(target.id, options);
-  }
-
-  return target.id;
+  return null;
 }
 
-/**
- * 激活 Chrome 网页。
- */
 export async function activateChromePage(targetId, options = {}) {
   targetId = assertNonBlank(targetId, "targetId");
-  await ensureChrome(options);
-  await assertTargetExists(targetId, options);
 
+  const target = await getTarget(targetId, {
+    ...options,
+    type: TARGET_TYPE.WEBPAGE,
+  });
   await activateTarget(targetId, options);
-
-  return targetId;
+  return normalizePage(target);
 }
 
 /**
@@ -312,13 +305,12 @@ export async function activateChromePage(targetId, options = {}) {
  */
 export async function openChromePage(url, options = {}) {
   url = assertHttpUrl(url);
-  await ensureChrome(options);
 
-  const target = await createTarget(url, options);
-
+  const target = await openTarget(url, options);
+  // 等待页面加载
   await waitChromePage(target.id, options);
 
-  return target.id;
+  return normalizePage(target);
 }
 
 /**
@@ -326,21 +318,21 @@ export async function openChromePage(url, options = {}) {
  */
 export async function ensureChromePage(url, options = {}) {
   url = assertHttpUrl(url);
-  await ensureChrome(options);
 
-  try {
-    const targetId = await findChromePage(options.keyword ?? url, options);
+  let target;
+  const keyword = options.keyword ?? url;
 
-    // 已找到页面，激活并等待加载完成
-    await activateChromePage(targetId, options);
-    await waitChromePage(targetId, options);
+  target = await findTarget(keyword, { ...options, type: TARGET_TYPE.WEBPAGE });
 
-    return targetId;
-  } catch (error) {
-    if (error.code !== ERROR_CODE.NOT_FOUND) throw error;
-
-    return await openChromePage(url, options);
+  if (target) {
+    await activateTarget(target.id, options);
+  } else {
+    target = await openTarget(url, options);
+    // 等待页面加载
+    await waitChromePage(target.id, options);
   }
+
+  return normalizePage(target);
 }
 
 /**
@@ -348,10 +340,11 @@ export async function ensureChromePage(url, options = {}) {
  */
 export async function closeChromePage(targetId, options = {}) {
   targetId = assertNonBlank(targetId, "targetId");
-  await ensureChrome(options);
-  await assertTargetExists(targetId, options);
 
+  const target = await getTarget(targetId, {
+    ...options,
+    type: TARGET_TYPE.WEBPAGE,
+  });
   await closeTarget(targetId, options);
-
-  return true;
+  return normalizePage(target);
 }

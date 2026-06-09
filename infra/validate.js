@@ -5,7 +5,7 @@ import { ERROR_CODE, createError } from "./error.js";
 // -------------------------------
 
 // existence
-export const isNull = (v) =>  v === null || v === undefined;
+export const isNull = (v) => v === null || v === undefined;
 
 // type
 export const isString = (v) => typeof v === "string";
@@ -32,22 +32,17 @@ export const isTooLong = (v, max) => typeof v === "string" && v.length > max;
 export const isPatternMatched = (v, regex) =>
   typeof v === "string" && regex.test(v);
 
-export const isInteger = (v) =>
-  Number.isInteger(Number(v));
+export const isInteger = (v) => Number.isInteger(Number(v));
 
-export const isPositive = (v) =>
-  Number.isFinite(Number(v)) && Number(v) > 0;
+export const isPositive = (v) => Number.isFinite(Number(v)) && Number(v) > 0;
 
-export const isNegative = (v) =>
-  Number.isFinite(Number(v)) && Number(v) < 0;
+export const isNegative = (v) => Number.isFinite(Number(v)) && Number(v) < 0;
 
 export const isInRange = (v, { min, max } = {}) => {
   const n = Number(v);
 
   return (
-    Number.isFinite(n) &&
-    (min == null || n >= min) &&
-    (max == null || n <= max)
+    Number.isFinite(n) && (min == null || n >= min) && (max == null || n <= max)
   );
 };
 
@@ -73,6 +68,16 @@ export const isValidUrl = (v) => {
   }
 };
 
+export const isHttpUrl = (v) => {
+  if (!isValidUrl(v)) {
+    return false;
+  }
+
+  const url = new URL(v);
+
+  return url.protocol === "http:" || url.protocol === "https:";
+};
+
 export const isValidDate = (v) =>
   v !== "" &&
   v !== null &&
@@ -87,52 +92,65 @@ export const isPlainObject = (value) => {
 // 断言
 // -------------------------------
 
-export function assertRequired(value, ...params) {
+export function assertRequired(value, fieldName = "value") {
   if (isNull(value)) {
     throw createError(
       ERROR_CODE.REQUIRED,
-      "{field} is required",
+      "{0} is required",
       null,
-      ...params,
+      fieldName,
     );
   }
 
   return value;
 }
 
-export function assertPositive(value, ...params) {
+export function assertPositive(value, fieldName = "value") {
   if (!isPositive(value)) {
     throw createError(
       ERROR_CODE.INVALID,
-      "{field} must be a positive number",
+      "{0} must be a positive number",
       null,
-      ...params,
+      fieldName,
     );
   }
 
   return value;
 }
 
-export function assertString(value, ...params) {
+export function assertString(value, fieldName = "value") {
   if (!isString(value)) {
     throw createError(
       ERROR_CODE.INVALID,
-      "{field} must be a string",
+      "{0} must be a string",
       null,
-      ...params,
+      fieldName,
     );
   }
 
   return value;
 }
 
-export function assertNonBlank(value, ...params) {
+export function assertNonBlank(value, fieldName = "value") {
   if (isBlank(value)) {
     throw createError(
       ERROR_CODE.INVALID,
-      "{field} must not be blank",
+      "{0} must not be blank",
       null,
-      ...params,
+      fieldName,
+    );
+  }
+
+  return value;
+}
+
+export function assertHttpUrl(value, fieldName = "url") {
+  if (!isHttpUrl(value)) {
+    throw createError(
+      ERROR_CODE.INVALID,
+      "{fieldName} must be a valid http or https url",
+      null,
+      { fieldName },
     );
   }
 
