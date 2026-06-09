@@ -1,0 +1,16 @@
+{
+  "name": "welm-cdp",
+  "version": "0.1.0",
+  "description": "CDP tools",
+  "type": "module",
+  "bin": {
+    "welm-cdp": "./cmd.js"
+  },
+  "scripts": {
+    "start": "node ./cmd.js",
+    "test": "node --test"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "UNLICENSED"
+}
