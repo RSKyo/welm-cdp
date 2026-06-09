@@ -148,9 +148,9 @@ export function assertHttpUrl(value, fieldName = "url") {
   if (!isHttpUrl(value)) {
     throw createError(
       ERROR_CODE.INVALID,
-      "{fieldName} must be a valid http or https url",
+      "{0} must be a valid http or https url",
       null,
-      { fieldName },
+      fieldName,
     );
   }
 
