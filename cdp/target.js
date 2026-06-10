@@ -35,6 +35,7 @@ export async function listTargets(options = {}) {
         (target) => target.type === TARGET_TYPE.PAGE && isHttpUrl(target.url ?? ""),
       );
       break;
+
   }
 
   return targets.map(normalizeTarget);

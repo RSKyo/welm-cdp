@@ -1,19 +1,21 @@
+// node
 import { spawn } from "node:child_process";
-import { access } from "node:fs/promises";
 import { constants } from "node:fs";
+import { access } from "node:fs/promises";
 
+// infra
 import {
   DEFAULT_HOST,
   DEFAULT_PORT,
   DEFAULT_TIMEOUT,
   DEFAULT_INTERVAL,
 } from "../infra/config.js";
-
-import { log } from "../infra/log.js";
 import { ERROR_CODE, createError } from "../infra/error.js";
-import { toBool, sleep } from "../infra/utils.js";
+import { log } from "../infra/log.js";
+import { sleep } from "../infra/utils.js";
 import { assertNonBlank, assertHttpUrl } from "../infra/validate.js";
 
+// cdp
 import {
   TARGET_TYPE,
   listTargets,
@@ -23,9 +25,16 @@ import {
   openTarget,
   closeTarget,
 } from "./target.js";
-import { evaluate, poll } from "./runtime.js";
-import { waitDom, waitLoad } from "./wait.js";
+import { waitPage } from "./wait.js";
 
+/**
+ * 标准化 Chrome Page 对象。
+ *
+ * 返回：
+ *   id
+ *   title
+ *   url
+ */
 function normalizePage(target) {
   return {
     id: target.id,
@@ -147,7 +156,26 @@ async function launchChrome(options = {}) {
 }
 
 /**
- * 确保 Chrome 已启动，并等待 CDP 服务可访问。
+ * 确保 Chrome 已启动。
+ *
+ * 流程：
+ *   1. 检查 CDP 服务是否可访问
+ *   2. 如未启动则启动 Chrome
+ *   3. 等待 CDP 服务就绪
+ *
+ * options:
+ *   host         CDP Host
+ *   port         CDP Port
+ *   chromeBin    Chrome 可执行文件路径
+ *   userDataDir  Chrome 用户数据目录
+ *   timeout      最大等待时间(ms)
+ *   interval     轮询间隔(ms)
+ *
+ * 返回：
+ *   host
+ *   port
+ *   chromeBin
+ *   userDataDir
  */
 export async function ensureChrome(options = {}) {
   const host = options.host ?? DEFAULT_HOST;
@@ -173,118 +201,62 @@ export async function ensureChrome(options = {}) {
 }
 
 /**
- * 判断是否属于页面初始化阶段的临时 evaluate 错误。
- */
-function isPageNotReadyError(error) {
-  const message = String(
-    error?.message || error?.error?.message || error,
-  ).toLowerCase();
-
-  return (
-    message.includes("execution context") || // 执行上下文相关错误，通常页面未初始化完成
-    message.includes("context was destroyed") || // 上下文已销毁，通常页面重导航或未初始化完成
-    message.includes("cannot find context") || // 无法找到上下文，通常页面未初始化完成
-    message.includes("document is not defined") || // 页面上下文未准备好，document 对象不存在
-    message.includes("frame was detached") // 页面 frame 被移除，通常页面重导航或未初始化完成
-  );
-}
-
-/**
- * 获取页面当前加载状态；页面上下文尚未准备好时视为 loading。
- */
-async function getPageReadyState(targetId, options = {}) {
-  try {
-    return await evaluate(targetId, "document.readyState", options);
-  } catch (error) {
-    if (isPageNotReadyError(error)) {
-      return "loading";
-    }
-
-    throw error;
-  }
-}
-
-/**
- * 判断页面是否已达到指定加载状态。
- */
-function isPageReady(readyState, mode) {
-  if (mode === "dom") {
-    return readyState === "interactive" || readyState === "complete";
-  }
-
-  if (mode === "load") {
-    return readyState === "complete";
-  }
-
-  throw createError(ERROR_CODE.INVALID, "invalid wait mode", {
-    wait: mode,
-  });
-}
-
-/**
- * 等待 Chrome 网页达到指定状态。
- */
-async function waitChromePage(targetId, options = {}) {
-  targetId = assertNonBlank(targetId, "targetId");
-
-  const mode = options.wait ?? "load";
-
-  await poll(targetId, "location.href !== 'about:blank'", options);
-
-  try {
-    if (mode === "dom") {
-      await waitDom(targetId, options);
-    } else if (mode === "load") {
-      await waitLoad(targetId, options);
-    } else {
-      throw createError(ERROR_CODE.INVALID, "invalid wait mode", {
-        wait: mode,
-      });
-    }
-  } catch (error) {
-    if (error.code !== ERROR_CODE.TIMEOUT) {
-      throw error;
-    }
-
-    // load/dom 事件可能在开始监听前已经发生。
-    // 如果页面当前状态已经满足要求，则视为成功。
-    const readyState = await getPageReadyState(targetId, options);
-
-    if (isPageReady(readyState, mode)) {
-      return;
-    }
-
-    throw error;
-  }
-}
-
-/**
- * 获取所有 Chrome 普通网页 target。
+ * 获取所有 Chrome 网页。
+ *
+ * options:
+ *   host CDP Host
+ *   port CDP Port
+ *
+ * 返回：
+ *   Chrome Page[]
  */
 export async function listChromePages(options = {}) {
-  const targets = await listTargets({ ...options, type: TARGET_TYPE.WEBPAGE });
+  options.type = options.type ?? TARGET_TYPE.WEBPAGE;
+  const targets = await listTargets(options);
 
   return targets.map(normalizePage);
 }
 
+/**
+ * 获取 Chrome 网页。
+ *
+ * targetId:
+ *   Chrome Target ID
+ *
+ * options:
+ *   host CDP Host
+ *   port CDP Port
+ *
+ * 返回：
+ *   Chrome Page
+ */
 export async function getChromePage(targetId, options = {}) {
   targetId = assertNonBlank(targetId, "targetId");
-
-  const target = await getTarget(targetId, {
-    ...options,
-    type: TARGET_TYPE.WEBPAGE,
-  });
+  options.type = options.type ?? TARGET_TYPE.WEBPAGE;
+  
+  const target = await getTarget(targetId, options);
 
   return normalizePage(target);
 }
 
+/**
+ * 根据关键字查找 Chrome 网页。
+ *
+ * keyword:
+ *   页面标题或 URL 关键字
+ *
+ * options:
+ *   host CDP Host
+ *   port CDP Port
+ *
+ * 返回：
+ *   Chrome Page | null
+ */
 export async function findChromePage(keyword, options = {}) {
   keyword = assertNonBlank(keyword, "keyword");
+  options.type = options.type ?? TARGET_TYPE.WEBPAGE;
 
-  const target = await findTarget(keyword, {
-    ...options,
-    type: TARGET_TYPE.WEBPAGE,
-  });
+  const target = await findTarget(keyword, options);
   if (target) {
     return normalizePage(target);
   }
@@ -292,6 +264,19 @@ export async function findChromePage(keyword, options = {}) {
   return null;
 }
 
+/**
+ * 激活 Chrome 网页。
+ *
+ * targetId:
+ *   Chrome Target ID
+ *
+ * options:
+ *   host CDP Host
+ *   port CDP Port
+ *
+ * 返回：
+ *   Chrome Page
+ */
 export async function activateChromePage(targetId, options = {}) {
   targetId = assertNonBlank(targetId, "targetId");
 
@@ -305,6 +290,23 @@ export async function activateChromePage(targetId, options = {}) {
 
 /**
  * 新建 Chrome 网页。
+ *
+ * 流程：
+ *   1. 创建 Chrome Target
+ *   2. 等待页面离开 about:blank
+ *   3. 等待页面加载完成
+ *
+ * url:
+ *   HTTP/HTTPS URL
+ *
+ * options:
+ *   host     CDP Host
+ *   port     CDP Port
+ *   timeout  最大等待时间(ms)
+ *   interval 轮询间隔(ms)
+ *
+ * 返回：
+ *   Chrome Page
  */
 export async function openChromePage(url, options = {}) {
   url = assertHttpUrl(url);
@@ -312,14 +314,32 @@ export async function openChromePage(url, options = {}) {
   // 创建 Target 后，会产生一个空白页 about:blank，此时并不能保证目标 url 开始加载
   // 接下来 Chrome 什么时候真正导航过去，是异步的
   const target = await openTarget(url, options);
-  // 等待页面加载
-  await waitChromePage(target.id, options);
+  await waitPage(target.id, options);
 
   return normalizePage(target);
 }
 
 /**
  * 查找或打开 Chrome 网页。
+ *
+ * 流程：
+ *   1. 根据 keyword 查找已有页面
+ *   2. 找到则激活页面
+ *   3. 未找到则创建新页面
+ *   4. 等待页面加载完成
+ *
+ * url:
+ *   HTTP/HTTPS URL
+ *
+ * options:
+ *   keyword  查找关键字（默认使用 url）
+ *   host     CDP Host
+ *   port     CDP Port
+ *   timeout  最大等待时间(ms)
+ *   interval 轮询间隔(ms)
+ *
+ * 返回：
+ *   Chrome Page
  */
 export async function ensureChromePage(url, options = {}) {
   url = assertHttpUrl(url);
@@ -333,8 +353,7 @@ export async function ensureChromePage(url, options = {}) {
     await activateTarget(target.id, options);
   } else {
     target = await openTarget(url, options);
-    // 等待页面加载
-    await waitChromePage(target.id, options);
+    await waitPage(target.id, options);
   }
 
   return normalizePage(target);
@@ -342,6 +361,16 @@ export async function ensureChromePage(url, options = {}) {
 
 /**
  * 关闭 Chrome 网页。
+ *
+ * targetId:
+ *   Chrome Target ID
+ *
+ * options:
+ *   host CDP Host
+ *   port CDP Port
+ *
+ * 返回：
+ *   Chrome Page
  */
 export async function closeChromePage(targetId, options = {}) {
   targetId = assertNonBlank(targetId, "targetId");

@@ -1,12 +1,27 @@
+// infra
 import { DEFAULT_TIMEOUT, DEFAULT_INTERVAL } from "../infra/config.js";
 import { ERROR_CODE, createError } from "../infra/error.js";
-import { assertNonBlank } from "../infra/validate.js";
 import { sleep } from "../infra/utils.js";
+import { assertNonBlank } from "../infra/validate.js";
+
+// cdp
 import { getClient } from "./client.js";
 
-
 /**
- * 执行表达式（Runtime.evaluate）。
+ * 在页面上下文中执行 JavaScript 表达式。
+ *
+ * targetId:
+ *   CDP Target ID
+ *
+ * expression:
+ *   在页面中执行的 JavaScript 表达式
+ *
+ * options:
+ *   host  CDP Host
+ *   port  CDP Port
+ *
+ * 返回：
+ *   表达式执行结果
  */
 export async function evaluate(targetId, expression, options = {}) {
   targetId = assertNonBlank(targetId, "targetId");
@@ -43,6 +58,16 @@ export async function evaluate(targetId, expression, options = {}) {
   return result.description;
 }
 
+/**
+ * 判断轮询结果是否命中。
+ *
+ * 命中规则：
+ *   null       -> false
+ *   undefined  -> false
+ *   false      -> false
+ *   ""         -> false
+ *   其它值     -> true
+ */
 function isPollMatched(value) {
   if (value == null) return false;
 
@@ -56,7 +81,19 @@ function isPollMatched(value) {
 }
 
 /**
- * 轮询执行表达式，直到命中或超时。
+ * 轮询执行表达式直到条件满足。
+ *
+ * targetId:
+ *   CDP Target ID
+ *
+ * expression:
+ *   在页面中执行的 JavaScript 表达式
+ *
+ * options:
+ *   timeout  最大等待时间(ms)
+ *   interval 轮询间隔(ms)
+ *   host     CDP Host
+ *   port     CDP Port
  */
 export async function poll(targetId, expression, options = {}) {
   const timeout = options.timeout ?? DEFAULT_TIMEOUT;
@@ -74,13 +111,9 @@ export async function poll(targetId, expression, options = {}) {
     await sleep(interval);
   }
 
-  throw createError(
-    ERROR_CODE.TIMEOUT,
-    "poll condition not matched",
-    {
-      timeout,
-      interval,
-      elapsed: Date.now() - start,
-    },
-  );
+  throw createError(ERROR_CODE.TIMEOUT, "poll condition not matched", {
+    timeout,
+    interval,
+    elapsed: Date.now() - start,
+  });
 }

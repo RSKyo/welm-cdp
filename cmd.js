@@ -2,7 +2,7 @@
 
 import { run } from "./infra/protocol.js";
 import { ERROR_CODE, createError } from "./infra/error.js";
-import { CHROME_COMMANDS } from "./cdp/_cmd.js";
+import { CHROME_COMMANDS } from "./cmd/chrome.js";
 import { closeAllClients } from "./cdp/client.js";
 
 // 一级命令分组

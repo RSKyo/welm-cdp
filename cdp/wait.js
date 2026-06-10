@@ -2,16 +2,27 @@ import { DEFAULT_TIMEOUT } from "../infra/config.js";
 import { ERROR_CODE, createError } from "../infra/error.js";
 import { assertNonBlank } from "../infra/validate.js";
 import { getClient } from "./client.js";
-import { evaluate, poll } from "./runtime.js";
+import { poll } from "./runtime.js";
 
 /**
- * 判断轮询结果是否命中。
- */
-
-/**
- * 等 selector 出现。
+ * 等待 selector 出现。
+ *
+ * targetId:
+ *   CDP Target ID
+ *
+ * selector:
+ *   CSS Selector
+ *
+ * options:
+ *   timeout  最大等待时间(ms)
+ *   interval 轮询间隔(ms)
+ *   host     CDP Host
+ *   port     CDP Port
  */
 export function waitSelector(targetId, selector, options = {}) {
+  targetId = assertNonBlank(targetId, "targetId");
+  selector = assertNonBlank(selector, "selector");
+
   const expression = `
     (() => {
       const el = document.querySelector(${JSON.stringify(selector)});
@@ -23,9 +34,31 @@ export function waitSelector(targetId, selector, options = {}) {
 }
 
 /**
- * 等元素可见。
+ * 等待元素可见。
+ *
+ * 可见条件：
+ *   display !== none
+ *   visibility !== hidden
+ *   opacity !== 0
+ *   width > 0
+ *   height > 0
+ *
+ * targetId:
+ *   CDP Target ID
+ *
+ * selector:
+ *   CSS Selector
+ *
+ * options:
+ *   timeout  最大等待时间(ms)
+ *   interval 轮询间隔(ms)
+ *   host     CDP Host
+ *   port     CDP Port
  */
 export function waitVisible(targetId, selector, options = {}) {
+  targetId = assertNonBlank(targetId, "targetId");
+  selector = assertNonBlank(selector, "selector");
+
   const expression = `
     (() => {
       const el = document.querySelector(${JSON.stringify(selector)});
@@ -48,9 +81,31 @@ export function waitVisible(targetId, selector, options = {}) {
 }
 
 /**
- * 等元素可编辑。
+ * 等待元素可编辑。
+ *
+ * 元素必须：
+ *   已可见
+ *   未 disabled
+ *   未 readonly
+ *
+ * contenteditable 元素直接视为可编辑。
+ *
+ * targetId:
+ *   CDP Target ID
+ *
+ * selector:
+ *   CSS Selector
+ *
+ * options:
+ *   timeout  最大等待时间(ms)
+ *   interval 轮询间隔(ms)
+ *   host     CDP Host
+ *   port     CDP Port
  */
 export function waitEditable(targetId, selector, options = {}) {
+  targetId = assertNonBlank(targetId, "targetId");
+  selector = assertNonBlank(selector, "selector");
+
   const expression = `
     (() => {
       const el = document.querySelector(${JSON.stringify(selector)});
@@ -89,9 +144,29 @@ export function waitEditable(targetId, selector, options = {}) {
 }
 
 /**
- * 等元素可点击。
+ * 等待元素可点击。
+ *
+ * 元素必须：
+ *   已可见
+ *   pointer-events !== none
+ *   未 disabled
+ *
+ * targetId:
+ *   CDP Target ID
+ *
+ * selector:
+ *   CSS Selector
+ *
+ * options:
+ *   timeout  最大等待时间(ms)
+ *   interval 轮询间隔(ms)
+ *   host     CDP Host
+ *   port     CDP Port
  */
 export function waitClickable(targetId, selector, options = {}) {
+  targetId = assertNonBlank(targetId, "targetId");
+  selector = assertNonBlank(selector, "selector");
+
   const expression = `
     (() => {
       const el = document.querySelector(${JSON.stringify(selector)});
@@ -120,9 +195,38 @@ export function waitClickable(targetId, selector, options = {}) {
 }
 
 /**
- * 等元素文本满足条件。
+ * 等待元素文本满足条件。
+ *
+ * mode:
+ *   includes
+ *   equals
+ *   regex
+ *
+ * targetId:
+ *   CDP Target ID
+ *
+ * selector:
+ *   CSS Selector
+ *
+ * expectedText:
+ *   期望文本
+ *
+ * options:
+ *   mode     includes (默认)|equals|regex
+ *   timeout  最大等待时间(ms)
+ *   interval 轮询间隔(ms)
+ *   host     CDP Host
+ *   port     CDP Port
  */
-function waitTextByMode(targetId, selector, expectedText, mode, options = {}) {
+export function waitText(targetId, selector, expectedText, options = {}) {
+  targetId = assertNonBlank(targetId, "targetId");
+  selector = assertNonBlank(selector, "selector");
+  expectedText = assertNonBlank(expectedText, "expectedText");
+
+  const mode = ["equals", "regex"].includes(options.mode)
+    ? options.mode
+    : "includes";
+
   const expression = `
     (() => {
       const el = document.querySelector(${JSON.stringify(selector)});
@@ -149,47 +253,13 @@ function waitTextByMode(targetId, selector, expectedText, mode, options = {}) {
 }
 
 /**
- * 等元素文本包含。
- */
-export function waitTextIncludes(
-  targetId,
-  selector,
-  expectedText,
-  options = {},
-) {
-  return waitTextByMode(targetId, selector, expectedText, "includes", options);
-}
-
-/**
- * 等元素文本一致。
- */
-export function waitTextEquals(targetId, selector, expectedText, options = {}) {
-  return waitTextByMode(targetId, selector, expectedText, "equals", options);
-}
-
-/**
- * 等元素文本正则匹配。
- */
-export function waitTextRegex(targetId, selector, expectedText, options = {}) {
-  return waitTextByMode(targetId, selector, expectedText, "regex", options);
-}
-
-/**
- * 等元素文本（默认 includes）。
- */
-export function waitText(targetId, selector, expectedText, options = {}) {
-  return waitTextByMode(
-    targetId,
-    selector,
-    expectedText,
-    options.mode || "includes",
-    options,
-  );
-}
-
-/**
- * 等一次 Node EventEmitter 事件触发
- * 并不是 DOM Element
+ * 等待一次 CDP Client Event 触发。
+ *
+ * eventName:
+ *   事件名称
+ *
+ * options:
+ *   timeout 最大等待时间(ms)
  */
 function waitEmitterEvent(emitter, eventName, options = {}) {
   if (!emitter || typeof emitter.on !== "function") {
@@ -198,28 +268,28 @@ function waitEmitterEvent(emitter, eventName, options = {}) {
 
   const timeout = options.timeout ?? DEFAULT_TIMEOUT;
 
+  const remove =
+    typeof emitter.off === "function"
+      ? emitter.off.bind(emitter)
+      : typeof emitter.removeListener === "function"
+        ? emitter.removeListener.bind(emitter)
+        : null;
+
+  if (!remove) {
+    throw createError(ERROR_CODE.INVALID, "invalid emitter");
+  }
+
   return new Promise((resolve, reject) => {
     let settled = false;
 
     const timer = setTimeout(() => {
       finish(
         reject,
-        createError(ERROR_CODE.TIMEOUT, "{eventName} wait timeout", null, {
+        createError(ERROR_CODE.TIMEOUT, "event {eventName} wait timeout", null, {
           eventName,
         }),
       );
     }, timeout);
-
-    const remove =
-      typeof emitter.off === "function"
-        ? emitter.off.bind(emitter)
-        : typeof emitter.removeListener === "function"
-          ? emitter.removeListener.bind(emitter)
-          : null;
-
-    if (!remove) {
-      throw createError(ERROR_CODE.INVALID, "invalid emitter");
-    }
 
     function finish(done, value) {
       if (settled) return;
@@ -238,45 +308,28 @@ function waitEmitterEvent(emitter, eventName, options = {}) {
 }
 
 /**
- * 等待 DOM 树已构建完成
- * CDP 事件：Page.domContentEventFired
- * 此时 document.readyState 通常是 interactive
+ * 等待页面加载完成。
+ *
+ * 流程：
+ *   1. 等待页面离开 about:blank
+ *   2. 启用 Page Domain
+ *   3. 等待 Page.loadEventFired
+ *
+ * targetId:
+ *   CDP Target ID
+ *
+ * options:
+ *   timeout  最大等待时间(ms)
+ *   interval 轮询间隔(ms)
+ *   host     CDP Host
+ *   port     CDP Port
  */
-export async function waitDom(targetId, options = {}) {
-  const client = await getClient(targetId, options);
+export async function waitPage(targetId, options = {}) {
+  targetId = assertNonBlank(targetId, "targetId");
 
+  const client = await getClient(targetId, options);
   await client.Page.enable();
 
-  return waitEmitterEvent(client, "Page.domContentEventFired", options);
+  await poll(targetId, "location.href !== 'about:blank'", options);
+  await waitEmitterEvent(client, "Page.loadEventFired", options);
 }
-
-/**
- * 等待页面所有资源加载完成
- * CDP 事件：Page.loadEventFired
- * 此时 document.readyState 通常是 complete
- */
-export async function waitLoad(targetId, options = {}) {
-  const client = await getClient(targetId, options);
-
-  await client.Page.enable();
-
-  return waitEmitterEvent(client, "Page.loadEventFired", options);
-}
-
-// 开始导航
-// ↓
-// HTML 下载
-// ↓
-// HTML 解析
-// ↓
-// DOMContentLoaded
-// ↓
-// 图片、CSS、iframe、字体等继续加载
-// ↓
-// load
-// ↓
-// 页面完全加载
-
-// 现代网站通常是 SPA 页面，页面加载完成后仍然会通过 Ajax请求渲染页面
-// 这意味着 waitLoad 后，页面业务内容不一定出来
-// 因此，更多常用的是 await waitSelector(...) 等 或直接 poll
