@@ -1,5 +1,5 @@
 import { ERROR_CODE, isClientError } from "./error.js";
-import { log } from "./log.js"
+import { log } from "./log.js";
 
 const PROTOCOL_ERROR_DEFAULTS = {
   includeStack: false,
@@ -91,24 +91,26 @@ function fail(error = null, meta) {
  * - 统一输出结果
  * - 捕获未处理异常并转为 fail
  */
-export async function run(main, options = {}) {
+export async function run(main, runOptions = {}) {
   try {
     const result = await main();
 
-    if (options.json) {
+    if (runOptions.json) {
       writeProtocolJson(ok(result));
     }
 
     process.exitCode = 0;
   } catch (error) {
-    log.error(error?.message ?? String(error), options);
-    
+    log.error(error?.message ?? String(error), runOptions);
+
     const result = error;
 
-    if (options.json) {
+    if (runOptions.json) {
       writeProtocolJson(fail(result));
     }
 
     process.exitCode = 1;
+  } finally {
+    await runOptions.cleanup?.();
   }
 }

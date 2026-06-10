@@ -23,7 +23,7 @@ import {
   openTarget,
   closeTarget,
 } from "./target.js";
-import { evaluate } from "./runtime.js";
+import { evaluate, poll } from "./runtime.js";
 import { waitDom, waitLoad } from "./wait.js";
 
 function normalizePage(target) {
@@ -228,11 +228,8 @@ async function waitChromePage(targetId, options = {}) {
   targetId = assertNonBlank(targetId, "targetId");
 
   const mode = options.wait ?? "load";
-  const readyState = await getPageReadyState(targetId, options);
 
-  if (isPageReady(readyState, mode)) {
-    return;
-  }
+  await poll(targetId, "location.href !== 'about:blank'", options);
 
   try {
     if (mode === "dom") {
@@ -245,9 +242,15 @@ async function waitChromePage(targetId, options = {}) {
       });
     }
   } catch (error) {
-    const currentReadyState = await getPageReadyState(targetId, options);
+    if (error.code !== ERROR_CODE.TIMEOUT) {
+      throw error;
+    }
 
-    if (isPageReady(currentReadyState, mode)) {
+    // load/dom 事件可能在开始监听前已经发生。
+    // 如果页面当前状态已经满足要求，则视为成功。
+    const readyState = await getPageReadyState(targetId, options);
+
+    if (isPageReady(readyState, mode)) {
       return;
     }
 
@@ -306,6 +309,8 @@ export async function activateChromePage(targetId, options = {}) {
 export async function openChromePage(url, options = {}) {
   url = assertHttpUrl(url);
 
+  // 创建 Target 后，会产生一个空白页 about:blank，此时并不能保证目标 url 开始加载
+  // 接下来 Chrome 什么时候真正导航过去，是异步的
   const target = await openTarget(url, options);
   // 等待页面加载
   await waitChromePage(target.id, options);

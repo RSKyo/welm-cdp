@@ -1,53 +1,12 @@
-import { DEFAULT_TIMEOUT, DEFAULT_INTERVAL } from "../infra/config.js";
-import { sleep } from "../infra/utils.js";
+import { DEFAULT_TIMEOUT } from "../infra/config.js";
 import { ERROR_CODE, createError } from "../infra/error.js";
+import { assertNonBlank } from "../infra/validate.js";
 import { getClient } from "./client.js";
-import { evaluate } from "./runtime.js";
+import { evaluate, poll } from "./runtime.js";
 
 /**
  * 判断轮询结果是否命中。
  */
-function isPollMatched(value) {
-  if (value == null) return false;
-
-  if (value === false) return false;
-
-  if (typeof value === "string") {
-    return value.trim() !== "";
-  }
-
-  return true;
-}
-
-/**
- * 轮询执行表达式，直到命中或超时。
- */
-async function poll(targetId, expression, options = {}) {
-  const timeout = options.timeout ?? DEFAULT_TIMEOUT;
-  const interval = options.interval ?? DEFAULT_INTERVAL;
-  const start = Date.now();
-  let value;
-
-  while (Date.now() - start < timeout) {
-    value = await evaluate(targetId, expression, options);
-
-    if (isPollMatched(value)) {
-      return value;
-    }
-
-    await sleep(interval);
-  }
-
-  throw createError(
-    ERROR_CODE.TIMEOUT,
-    "poll condition not matched",
-    {
-      timeout,
-      interval,
-      elapsed: Date.now() - start,
-    },
-  );
-}
 
 /**
  * 等 selector 出现。
@@ -229,16 +188,10 @@ export function waitText(targetId, selector, expectedText, options = {}) {
 }
 
 /**
- * 等某个 JS 表达式成立。
+ * 等一次 Node EventEmitter 事件触发
+ * 并不是 DOM Element
  */
-export function waitJs(targetId, expression, options = {}) {
-  return poll(targetId, expression, options);
-}
-
-/**
- * 等一次事件触发。
- */
-function waitPageEvent(emitter, eventName, options = {}) {
+function waitEmitterEvent(emitter, eventName, options = {}) {
   if (!emitter || typeof emitter.on !== "function") {
     throw createError(ERROR_CODE.INVALID, "invalid emitter");
   }
@@ -258,11 +211,14 @@ function waitPageEvent(emitter, eventName, options = {}) {
     }, timeout);
 
     const remove =
-      emitter.off?.bind(emitter) ||
-      emitter.removeListener?.bind(emitter);
+      typeof emitter.off === "function"
+        ? emitter.off.bind(emitter)
+        : typeof emitter.removeListener === "function"
+          ? emitter.removeListener.bind(emitter)
+          : null;
 
     if (!remove) {
-      throw createError(ERROR_CODE.INVALID, "emitter.off not supported");
+      throw createError(ERROR_CODE.INVALID, "invalid emitter");
     }
 
     function finish(done, value) {
@@ -282,31 +238,45 @@ function waitPageEvent(emitter, eventName, options = {}) {
 }
 
 /**
- * 等发生一次主导航。
- */
-export async function waitNavigation(targetId, options = {}) {
-  const { Page } = await getClient(targetId, options);
-  await Page.enable();
-
-  return waitPageEvent(Page, "frameNavigated", options);
-}
-
-/**
- * 等 DOMContentLoaded。
+ * 等待 DOM 树已构建完成
+ * CDP 事件：Page.domContentEventFired
+ * 此时 document.readyState 通常是 interactive
  */
 export async function waitDom(targetId, options = {}) {
-  const { Page } = await getClient(targetId, options);
-  await Page.enable();
+  const client = await getClient(targetId, options);
 
-  return waitPageEvent(Page, "domContentEventFired", options);
+  await client.Page.enable();
+
+  return waitEmitterEvent(client, "Page.domContentEventFired", options);
 }
 
 /**
- * 等 load 事件。
+ * 等待页面所有资源加载完成
+ * CDP 事件：Page.loadEventFired
+ * 此时 document.readyState 通常是 complete
  */
 export async function waitLoad(targetId, options = {}) {
-  const { Page } = await getClient(targetId, options);
-  await Page.enable();
+  const client = await getClient(targetId, options);
 
-  return waitPageEvent(Page, "loadEventFired", options);
+  await client.Page.enable();
+
+  return waitEmitterEvent(client, "Page.loadEventFired", options);
 }
+
+// 开始导航
+// ↓
+// HTML 下载
+// ↓
+// HTML 解析
+// ↓
+// DOMContentLoaded
+// ↓
+// 图片、CSS、iframe、字体等继续加载
+// ↓
+// load
+// ↓
+// 页面完全加载
+
+// 现代网站通常是 SPA 页面，页面加载完成后仍然会通过 Ajax请求渲染页面
+// 这意味着 waitLoad 后，页面业务内容不一定出来
+// 因此，更多常用的是 await waitSelector(...) 等 或直接 poll
