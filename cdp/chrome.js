@@ -9,6 +9,7 @@ import {
   DEFAULT_PORT,
   DEFAULT_TIMEOUT,
   DEFAULT_INTERVAL,
+  CHROME_USER_DATA_DIR,
 } from "../infra/config.js";
 import { ERROR_CODE, createError } from "../infra/error.js";
 import { log } from "../infra/log.js";
@@ -76,16 +77,6 @@ async function checkChromeBin(chromeBin = getChromeBin()) {
 }
 
 /**
- * 获取 Chrome 独立调试用户数据目录。
- */
-function getChromeUserDataDir() {
-  return (
-    process.env.CHROME_USER_DATA_DIR ||
-    `${process.env.HOME}/.local/share/welmcli/chrome-cdp-profile`
-  );
-}
-
-/**
  * 检查 CDP 服务是否可访问。
  */
 async function isCdpReady(options = {}) {
@@ -135,7 +126,7 @@ async function launchChrome(options = {}) {
   const port = options.port ?? DEFAULT_PORT;
 
   const chromeBin = await checkChromeBin(options.chromeBin ?? getChromeBin());
-  const userDataDir = options.userDataDir ?? getChromeUserDataDir();
+  const userDataDir = options.userDataDir ?? CHROME_USER_DATA_DIR;
 
   const args = [
     `--remote-debugging-address=${host}`,
@@ -181,7 +172,7 @@ export async function ensureChrome(options = {}) {
   const host = options.host ?? DEFAULT_HOST;
   const port = options.port ?? DEFAULT_PORT;
   const chromeBin = await checkChromeBin(options.chromeBin ?? getChromeBin());
-  const userDataDir = options.userDataDir ?? getChromeUserDataDir();
+  const userDataDir = options.userDataDir ?? CHROME_USER_DATA_DIR;
 
   if (!(await isCdpReady(options))) {
     log.progress(`Starting Chrome...`, options);
@@ -233,7 +224,7 @@ export async function listChromePages(options = {}) {
 export async function getChromePage(targetId, options = {}) {
   targetId = assertNonBlank(targetId, "targetId");
   options.type = options.type ?? TARGET_TYPE.WEBPAGE;
-  
+
   const target = await getTarget(targetId, options);
 
   return normalizePage(target);
@@ -313,9 +304,11 @@ export async function openChromePage(url, options = {}) {
 
   // 创建 Target 后，会产生一个空白页 about:blank，此时并不能保证目标 url 开始加载
   // 接下来 Chrome 什么时候真正导航过去，是异步的
-  const target = await openTarget(url, options);
+  let target = await openTarget(url, options);
   await waitPage(target.id, options);
 
+  // 由于 url 是异步加载的，因此前面获取的 target title是空的，需要重新获取
+  target = await getTarget(target.id, options);
   return normalizePage(target);
 }
 
@@ -354,6 +347,7 @@ export async function ensureChromePage(url, options = {}) {
   } else {
     target = await openTarget(url, options);
     await waitPage(target.id, options);
+    target = await getTarget(target.id, options);
   }
 
   return normalizePage(target);

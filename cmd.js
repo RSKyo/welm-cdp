@@ -3,11 +3,13 @@
 import { run } from "./infra/protocol.js";
 import { ERROR_CODE, createError } from "./infra/error.js";
 import { CHROME_COMMANDS } from "./cmd/chrome.js";
+import { PAGE_COMMANDS } from "./cmd/page.js";
 import { closeAllClients } from "./cdp/client.js";
 
 // 一级命令分组
 const COMMAND_GROUPS = {
   chrome: CHROME_COMMANDS,
+  page: PAGE_COMMANDS,
 };
 
 const { execute, argv, options } = resolveCommand(process.argv, COMMAND_GROUPS);

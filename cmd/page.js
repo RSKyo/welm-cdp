@@ -9,62 +9,58 @@ import {
 } from "../cdp/wait.js";
 
 /**
- * Wait CLI 命令注册表。
+ * 命令注册表。
  *
- * wait selector
- * wait visible
- * wait editable
- * wait clickable
- * wait text
- * wait page
+ * page has
+ * page visible
+ * page editable
+ * page clickable
+ * page text
+ * page ready
  */
-const WAIT_COMMANDS = {
-  selector: {
+const PAGE_COMMANDS = {
+  has: {
     handler: cmd_waitSelector,
-    usage: "wait selector <targetId> <selector> [options]",
-    description: "Wait for selector exists",
+    usage: "page has <targetId> <selector> [options]",
+    description: "Wait until element exists",
     options: "--timeout --interval --host --port",
   },
 
   visible: {
     handler: cmd_waitVisible,
-    usage: "wait visible <targetId> <selector> [options]",
-    description: "Wait for element visible",
+    usage: "page visible <targetId> <selector> [options]",
+    description: "Wait until element is visible",
     options: "--timeout --interval --host --port",
   },
 
   editable: {
     handler: cmd_waitEditable,
-    usage: "wait editable <targetId> <selector> [options]",
-    description: "Wait for element editable",
+    usage: "page editable <targetId> <selector> [options]",
+    description: "Wait until element is editable",
     options: "--timeout --interval --host --port",
   },
 
   clickable: {
     handler: cmd_waitClickable,
-    usage: "wait clickable <targetId> <selector> [options]",
-    description: "Wait for element clickable",
+    usage: "page clickable <targetId> <selector> [options]",
+    description: "Wait until element is clickable",
     options: "--timeout --interval --host --port",
   },
 
   text: {
     handler: cmd_waitText,
-    usage: "wait text <targetId> <selector> <expectedText> [options]",
-    description: "Wait for text match",
+    usage: "page text <targetId> <selector> <expectedText> [options]",
+    description: "Wait until text matches expected value",
     options: "--mode --timeout --interval --host --port",
   },
 
-  page: {
+  ready: {
     handler: cmd_waitPage,
-    usage: "wait page <targetId> [options]",
-    description: "Wait for page load",
+    usage: "page ready <targetId> [options]",
+    description: "Wait until page is ready",
     options: "--timeout --interval --host --port",
   },
 };
-
-export const PAGE_COMMANDS = {
-    ...WAIT_COMMANDS,
-}
 
 // CLI 命令实现
 
