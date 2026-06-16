@@ -2,7 +2,7 @@ import { ERROR_CODE, createError } from "../infra/error.js";
 import { assertNonBlank } from "../infra/validate.js";
 import { getClient } from "./client.js";
 import { evaluate } from "./runtime.js";
-import { waitSelector, waitEditable, waitClickable } from "./wait.js";
+import { waitEditable, waitClickable } from "./wait.js";
 import { getElementCenter } from "./dom.js";
 
 function q(value) {
@@ -193,7 +193,7 @@ export async function doubleClick(targetId, selector, options = {}) {
 /**
  * 鼠标滚轮。
  */
-export async function wheelAt(
+async function wheelAt(
   targetId,
   x,
   y,
@@ -216,22 +216,106 @@ export async function wheelAt(
 }
 
 /**
+ * 常用功能键映射。
+ *
+ * 普通文本输入使用 type() / fill()，
+ * 不通过 press() 模拟字符键。
+ */
+const KEY_MAP = {
+  Enter: {
+    code: "Enter",
+    windowsVirtualKeyCode: 13,
+    nativeVirtualKeyCode: 13,
+  },
+  Tab: {
+    code: "Tab",
+    windowsVirtualKeyCode: 9,
+    nativeVirtualKeyCode: 9,
+  },
+  Escape: {
+    code: "Escape",
+    windowsVirtualKeyCode: 27,
+    nativeVirtualKeyCode: 27,
+  },
+  Backspace: {
+    code: "Backspace",
+    windowsVirtualKeyCode: 8,
+    nativeVirtualKeyCode: 8,
+  },
+  Delete: {
+    code: "Delete",
+    windowsVirtualKeyCode: 46,
+    nativeVirtualKeyCode: 46,
+  },
+  ArrowUp: {
+    code: "ArrowUp",
+    windowsVirtualKeyCode: 38,
+    nativeVirtualKeyCode: 38,
+  },
+  ArrowDown: {
+    code: "ArrowDown",
+    windowsVirtualKeyCode: 40,
+    nativeVirtualKeyCode: 40,
+  },
+  ArrowLeft: {
+    code: "ArrowLeft",
+    windowsVirtualKeyCode: 37,
+    nativeVirtualKeyCode: 37,
+  },
+  ArrowRight: {
+    code: "ArrowRight",
+    windowsVirtualKeyCode: 39,
+    nativeVirtualKeyCode: 39,
+  },
+  Home: {
+    code: "Home",
+    windowsVirtualKeyCode: 36,
+    nativeVirtualKeyCode: 36,
+  },
+  End: {
+    code: "End",
+    windowsVirtualKeyCode: 35,
+    nativeVirtualKeyCode: 35,
+  },
+  PageUp: {
+    code: "PageUp",
+    windowsVirtualKeyCode: 33,
+    nativeVirtualKeyCode: 33,
+  },
+  PageDown: {
+    code: "PageDown",
+    windowsVirtualKeyCode: 34,
+    nativeVirtualKeyCode: 34,
+  },
+};
+
+function buildKeyEvent(key, options = {}) {
+  key = assertNonBlank(key, "key");
+
+  const preset = KEY_MAP[key] ?? {};
+
+  return {
+    key,
+    code: options.code ?? preset.code,
+    windowsVirtualKeyCode:
+      options.windowsVirtualKeyCode ?? preset.windowsVirtualKeyCode,
+    nativeVirtualKeyCode:
+      options.nativeVirtualKeyCode ?? preset.nativeVirtualKeyCode,
+    modifiers: options.modifiers ?? 0,
+  };
+}
+
+/**
  * 键盘按下。
  */
 async function keyDown(targetId, key, options = {}) {
-  key = assertNonBlank(key, "key");
-
   const Input = await getInput(targetId, options);
 
   await Input.dispatchKeyEvent({
     type: "keyDown",
-    key,
-    code: options.code,
+    ...buildKeyEvent(key, options),
     text: options.text,
     unmodifiedText: options.unmodifiedText,
-    windowsVirtualKeyCode: options.windowsVirtualKeyCode,
-    nativeVirtualKeyCode: options.nativeVirtualKeyCode,
-    modifiers: options.modifiers ?? 0,
   });
 
   return true;
@@ -241,64 +325,76 @@ async function keyDown(targetId, key, options = {}) {
  * 键盘抬起。
  */
 async function keyUp(targetId, key, options = {}) {
-  key = assertNonBlank(key, "key");
-
   const Input = await getInput(targetId, options);
 
   await Input.dispatchKeyEvent({
     type: "keyUp",
-    key,
-    code: options.code,
-    modifiers: options.modifiers ?? 0,
+    ...buildKeyEvent(key, options),
   });
 
   return true;
 }
 
 /**
- * 按一次键。
+ * 按一次按键。
  */
-export async function press(targetId, key, options = {}) {
+async function press(targetId, key, options = {}) {
   await keyDown(targetId, key, options);
   await keyUp(targetId, key, options);
 
   return true;
 }
 
-/**
- * 回车。
- */
 export async function enter(targetId, options = {}) {
-  return press(targetId, "Enter", {
-    ...options,
-    code: "Enter",
-    windowsVirtualKeyCode: 13,
-    nativeVirtualKeyCode: 13,
-  });
+  return press(targetId, "Enter", options);
 }
 
-/**
- * Tab。
- */
 export async function tab(targetId, options = {}) {
-  return press(targetId, "Tab", {
-    ...options,
-    code: "Tab",
-    windowsVirtualKeyCode: 9,
-    nativeVirtualKeyCode: 9,
-  });
+  return press(targetId, "Tab", options);
 }
 
-/**
- * Escape。
- */
 export async function escape(targetId, options = {}) {
-  return press(targetId, "Escape", {
-    ...options,
-    code: "Escape",
-    windowsVirtualKeyCode: 27,
-    nativeVirtualKeyCode: 27,
-  });
+  return press(targetId, "Escape", options);
+}
+
+export async function backspace(targetId, options = {}) {
+  return press(targetId, "Backspace", options);
+}
+
+export async function deleteKey(targetId, options = {}) {
+  return press(targetId, "Delete", options);
+}
+
+export async function arrowUp(targetId, options = {}) {
+  return press(targetId, "ArrowUp", options);
+}
+
+export async function arrowDown(targetId, options = {}) {
+  return press(targetId, "ArrowDown", options);
+}
+
+export async function arrowLeft(targetId, options = {}) {
+  return press(targetId, "ArrowLeft", options);
+}
+
+export async function arrowRight(targetId, options = {}) {
+  return press(targetId, "ArrowRight", options);
+}
+
+export async function home(targetId, options = {}) {
+  return press(targetId, "Home", options);
+}
+
+export async function end(targetId, options = {}) {
+  return press(targetId, "End", options);
+}
+
+export async function pageUp(targetId, options = {}) {
+  return press(targetId, "PageUp", options);
+}
+
+export async function pageDown(targetId, options = {}) {
+  return press(targetId, "PageDown", options);
 }
 
 /**
@@ -366,7 +462,8 @@ async function clearElementValue(targetId, selector, options = {}) {
 }
 
 /**
- * 模拟真人输入。
+ * 模拟输入文本。
+ * 更接近真实键盘输入，适合触发输入法/前端监听。
  */
 export async function type(targetId, selector, text, options = {}) {
   selector = assertNonBlank(selector, "selector");
@@ -393,7 +490,9 @@ export async function type(targetId, selector, text, options = {}) {
 }
 
 /**
- * 直接填充输入框值。
+ * 直接设置元素值。
+ * 比 type 更快，但更偏 DOM 写入。
+ * 会覆盖原值，不需要 clear。
  */
 export async function fill(targetId, selector, text, options = {}) {
   selector = assertNonBlank(selector, "selector");

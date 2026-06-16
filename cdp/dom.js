@@ -6,7 +6,7 @@ function q(value) {
 }
 
 /**
- * 获取单个元素指定属性的值
+ * 获取单个元素指定属性的值。
  */
 export async function getElementAttribute(targetId, selector, name, options = {}) {
   selector = assertNonBlank(selector, "selector");
@@ -18,8 +18,12 @@ export async function getElementAttribute(targetId, selector, name, options = {}
       if (!el) {
         throw new Error("element not found");
       }
-      
-      return el.getAttribute(${q(name)}) ?? null;
+
+      if (!el.hasAttribute(${q(name)})) {
+        throw new Error("attribute not found");
+      }
+
+      return el.getAttribute(${q(name)});
     })()
   `;
 
@@ -59,6 +63,9 @@ export async function getElementOuterHTML(targetId, selector, options = {}) {
   const expression = `
     (() => {
       const el = document.querySelector(${q(selector)});
+      if (!el) {
+        throw new Error("element not found");
+      }
 
       return el.outerHTML;
     })()
@@ -76,6 +83,10 @@ export async function getElementInnerHTML(targetId, selector, options = {}) {
   const expression = `
     (() => {
       const el = document.querySelector(${q(selector)});
+      if (!el) {
+        throw new Error("element not found");
+      }
+      
       return el.innerHTML;
     })()
   `;
@@ -92,6 +103,9 @@ export async function getElementInnerText(targetId, selector, options = {}) {
   const expression = `
     (() => {
       const el = document.querySelector(${q(selector)});
+      if (!el) {
+        throw new Error("element not found");
+      }
 
       return el.innerText;
     })()

@@ -4,6 +4,10 @@ import { assertNonBlank } from "../infra/validate.js";
 import { getClient } from "./client.js";
 import { poll } from "./runtime.js";
 
+function q(value) {
+  return JSON.stringify(value);
+}
+
 /**
  * 等待 selector 出现。
  *
@@ -25,7 +29,7 @@ export function waitSelector(targetId, selector, options = {}) {
 
   const expression = `
     (() => {
-      const el = document.querySelector(${JSON.stringify(selector)});
+      const el = document.querySelector(${q(selector)});
       return !!el;
     })()
   `;
@@ -61,7 +65,7 @@ export function waitVisible(targetId, selector, options = {}) {
 
   const expression = `
     (() => {
-      const el = document.querySelector(${JSON.stringify(selector)});
+      const el = document.querySelector(${q(selector)});
       if (!el) return false;
 
       const style = window.getComputedStyle(el);
@@ -108,7 +112,7 @@ export function waitEditable(targetId, selector, options = {}) {
 
   const expression = `
     (() => {
-      const el = document.querySelector(${JSON.stringify(selector)});
+      const el = document.querySelector(${q(selector)});
       if (!el) return false;
 
       const style = window.getComputedStyle(el);
@@ -169,7 +173,7 @@ export function waitClickable(targetId, selector, options = {}) {
 
   const expression = `
     (() => {
-      const el = document.querySelector(${JSON.stringify(selector)});
+      const el = document.querySelector(${q(selector)});
       if (!el) return false;
 
       const style = window.getComputedStyle(el);
@@ -208,8 +212,11 @@ export function waitClickable(targetId, selector, options = {}) {
  * selector:
  *   CSS Selector
  *
- * expectedText:
- *   期望文本
+ * pattern:
+ *   匹配内容。
+ *   includes 模式下表示文本片段；
+ *   equals 模式下表示完整文本；
+ *   regex 模式下表示正则表达式字符串。
  *
  * options:
  *   mode     includes (默认)|equals|regex
@@ -218,34 +225,34 @@ export function waitClickable(targetId, selector, options = {}) {
  *   host     CDP Host
  *   port     CDP Port
  */
-export function waitText(targetId, selector, expectedText, options = {}) {
+export function waitMatch(targetId, selector, pattern, options = {}) {
   targetId = assertNonBlank(targetId, "targetId");
   selector = assertNonBlank(selector, "selector");
-  expectedText = assertNonBlank(expectedText, "expectedText");
+  pattern = assertNonBlank(pattern, "pattern");
 
-  const mode = ["equals", "regex"].includes(options.mode)
+  const mode = ["includes", "equals", "regex"].includes(options.mode)
     ? options.mode
     : "includes";
 
   const expression = `
     (() => {
-      const el = document.querySelector(${JSON.stringify(selector)});
+      const el = document.querySelector(${q(selector)});
       if (!el) return false;
 
       const text = (el.innerText ?? el.textContent ?? '').trim();
-      const mode = ${JSON.stringify(mode)};
-      const expected = ${JSON.stringify(expectedText)};
+      const mode = ${q(mode)};
+      const pattern = ${q(pattern)};
 
       if (mode === 'equals') {
-        return text === expected ? text : '';
+        return text === pattern ? text : '';
       }
 
       if (mode === 'regex') {
-        const re = new RegExp(expected);
+        const re = new RegExp(pattern);
         return re.test(text) ? text : '';
       }
 
-      return text.includes(expected) ? text : '';
+      return text.includes(pattern) ? text : '';
     })()
   `;
 
