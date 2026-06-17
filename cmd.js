@@ -2,14 +2,22 @@
 
 import { run } from "./infra/protocol.js";
 import { ERROR_CODE, createError } from "./infra/error.js";
-import { CHROME_COMMANDS } from "./cmd/chrome.js";
-import { PAGE_COMMANDS } from "./cmd/page.js";
 import { closeAllClients } from "./cdp/client.js";
+import { CHROME_COMMANDS } from "./cmd/chrome.js";
+import { WAIT_COMMANDS } from "./cmd/wait.js";
+import { DOM_COMMANDS } from "./cmd/dom.js";
+import { INPUT_COMMANDS } from "./cmd/input.js";
+import { SCREENSHOT_COMMANDS } from "./cmd/screenshot.js";
+import { FILE_COMMANDS } from "./cmd/file.js";
 
 // 一级命令分组
 const COMMAND_GROUPS = {
   chrome: CHROME_COMMANDS,
-  page: PAGE_COMMANDS,
+  wait: WAIT_COMMANDS,
+  dom: DOM_COMMANDS,
+  input: INPUT_COMMANDS,
+  screenshot: SCREENSHOT_COMMANDS,
+  file: FILE_COMMANDS,
 };
 
 const { execute, argv, options } = resolveCommand(process.argv, COMMAND_GROUPS);

@@ -10,9 +10,13 @@ export const DEFAULT_NETWORK_CHECK_TIMEOUT = 5000; // 毫秒
 export const WELM_HOME =
   process.env.WELM_HOME ?? `${process.env.HOME}/.local/share/welm`;
 
-export const CHROME_USER_DATA_DIR =
-  process.env.CHROME_USER_DATA_DIR ?? `${WELM_HOME}/chrome-profile`;
+export const CHROME_USER_DATA_DIR = `${WELM_HOME}/chrome-profile`;
+
+export const SCREENSHOT_DIR =`${WELM_HOME}/screenshots`;
 
 export const CACHE_DIR = `${WELM_HOME}/cache`;
 
 export const TEMP_DIR = `${WELM_HOME}/temp`;
+
+// infra/config.js
+
