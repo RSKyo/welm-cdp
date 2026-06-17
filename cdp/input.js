@@ -30,9 +30,11 @@ async function getInput(targetId, options = {}) {
  */
 
 /**
- * 鼠标移动。
+ * 移动鼠标到指定 viewport 坐标。
+ *
+ * x、y 基于 viewport 坐标。
  */
-async function mouseMoveTo(targetId, x, y, options = {}) {
+export async function mouseMoveTo(targetId, x, y, options = {}) {
   const Input = await getInput(targetId, options);
 
   await Input.dispatchMouseEvent({
@@ -166,8 +168,6 @@ async function scrollIntoView(targetId, selector, options = {}) {
   return true;
 }
 
-
-
 /**
  * 点击元素。
  */
@@ -191,9 +191,12 @@ export async function doubleClick(targetId, selector, options = {}) {
 }
 
 /**
- * 鼠标滚轮。
+ * 在指定 viewport 坐标触发鼠标滚轮。
+ *
+ * x、y 基于 viewport 坐标。
+ * deltaY > 0 向下滚动，deltaY < 0 向上滚动。
  */
-async function wheelAt(
+export async function wheelAt(
   targetId,
   x,
   y,
@@ -361,6 +364,11 @@ export async function backspace(targetId, options = {}) {
   return press(targetId, "Backspace", options);
 }
 
+/**
+ * Delete。
+ *
+ * JS 中 delete 是关键字，因此函数命名为 deleteKey。
+ */
 export async function deleteKey(targetId, options = {}) {
   return press(targetId, "Delete", options);
 }

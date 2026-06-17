@@ -1,64 +1,164 @@
-import fs from "fs";
-import path from "path";
-import { ERROR_CODE, createError } from "../infra/error.js";
+import fs from "node:fs";
+import fsp from "node:fs/promises";
+import path from "node:path";
+import { assertNonBlank } from "../infra/validate.js";
+import { createError, ERROR_CODE } from "../infra/error.js";
 
-function isFile(file) {
-  return fs.statSync(file).isFile();
+
+// -----------------------------------------------------------------------------
+// Core IO
+// -----------------------------------------------------------------------------
+
+function readFile(file) {
+  file = assertNonBlank(file, "file");
+  return fs.readFileSync(file);
 }
 
-function isDirectory(dir) {
-  return fs.statSync(dir).isDirectory();
+async function writeFile(file, data) {
+  file = assertNonBlank(file, "file");
+
+  if (data == null) {
+    throw createError(ERROR_CODE.INVALID, "missing data");
+  }
+
+  await ensureDir(path.dirname(file));
+  await fsp.writeFile(file, data);
+
+  return file;
 }
 
-function isHidden(file) {
-  return path.basename(file).startsWith(".");
+
+// -----------------------------------------------------------------------------
+// Text
+// -----------------------------------------------------------------------------
+
+function readText(file) {
+  file = assertNonBlank(file, "file");
+  return fs.readFileSync(file, "utf8");
 }
 
-function matchExt(file, ext) {
-  if (!ext) return true;
-  return path.extname(file).toLowerCase() === ext.toLowerCase();
+export async function writeText(file, text, encoding = "utf8") {
+  return writeFile(file, String(text), encoding);
 }
 
-export function getFiles(input, ext = null, options = {}) {
+
+// -----------------------------------------------------------------------------
+// JSON
+// -----------------------------------------------------------------------------
+
+export function readJson(file) {
+  try {
+    return JSON.parse(readText(file));
+  } catch {
+    throw createError(ERROR_CODE.INVALID, "invalid json");
+  }
+}
+
+export async function writeJson(file, value, options = {}) {
+  const { spaces = 2 } = options;
+
+  const text = JSON.stringify(value, null, spaces);
+
+  return writeText(file, text);
+}
+
+
+// -----------------------------------------------------------------------------
+// Buffer / Binary
+// -----------------------------------------------------------------------------
+
+export function readBuffer(file) {
+  file = assertNonBlank(file, "file");
+  return fs.readFileSync(file);
+}
+
+export async function writeBuffer(file, buffer) {
+  if (!Buffer.isBuffer(buffer) && !(buffer instanceof Uint8Array)) {
+    throw createError(ERROR_CODE.INVALID, "invalid buffer");
+  }
+
+  return writeFile(file, buffer);
+}
+
+
+// -----------------------------------------------------------------------------
+// Base64 (explicit layer, NOT encoding hack)
+// -----------------------------------------------------------------------------
+
+export function readBase64(file) {
+  const buffer = readBuffer(file);
+  return buffer.toString("base64");
+}
+
+export async function writeBase64(file, base64) {
+  if (typeof base64 !== "string") {
+    throw createError(ERROR_CODE.INVALID, "base64 must be string");
+  }
+
+  const clean = base64.replace(/^data:.*;base64,/, "");
+
+  const buffer = Buffer.from(clean, "base64");
+
+  return writeFile(file, buffer);
+}
+
+
+// -----------------------------------------------------------------------------
+// FS utilities
+// -----------------------------------------------------------------------------
+
+export function exists(file) {
+  return fs.existsSync(file);
+}
+
+export function isFile(file) {
+  return fs.existsSync(file) && fs.statSync(file).isFile();
+}
+
+export function isDir(dir) {
+  return fs.existsSync(dir) && fs.statSync(dir).isDirectory();
+}
+
+export async function ensureDir(dir) {
+  return fsp.mkdir(dir, { recursive: true });
+}
+
+
+// -----------------------------------------------------------------------------
+// file list
+// -----------------------------------------------------------------------------
+
+export function getFiles(input, options = {}) {
   const { recursive = true, hidden = false } = options;
 
   const target = path.resolve(input);
 
   if (!fs.existsSync(target)) {
-    throw createError(ERROR_CODE.PATH_NOT_FOUND, `path not found: ${input}`);
+    throw createError(ERROR_CODE.NOT_FOUND, `not found: ${input}`);
   }
 
-  if (!hidden && isHidden(target)) {
-    return [];
-  }
+  const walk = (dir) => {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
 
-  if (isFile(target)) {
-    return matchExt(target, ext) ? [target] : [];
-  }
+    const result = [];
 
-  return fs
-    .readdirSync(target, {
-      recursive,
-      withFileTypes: true,
-    })
-    .filter((entry) => entry.isFile())
-    .map((entry) => path.join(entry.parentPath, entry.name))
-    .filter((file) => hidden || !isHidden(file))
-    .filter((file) => matchExt(file, ext));
-}
+    for (const e of entries) {
+      const full = path.join(dir, e.name);
 
-export function readText(file, encoding = "utf8") {
-  return fs.readFileSync(file, encoding);
-}
+      if (!hidden && e.name.startsWith(".")) continue;
 
-export function writeText(file, text, encoding = "utf8") {
-  fs.writeFileSync(file, text, encoding);
-}
+      if (e.isDirectory()) {
+        if (recursive) {
+          result.push(...walk(full));
+        }
+      } else {
+        result.push(full);
+      }
+    }
 
-export function displayPath(file, options = {}) {
-  if (options.fullPath) {
-    return file;
-  }
+    return result;
+  };
 
-  return path.basename(file);
+  if (isFile(target)) return [target];
+  return walk(target);
 }
