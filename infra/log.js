@@ -1,3 +1,5 @@
+import { getDisplayWidth } from "./utils.js";
+
 const COLOR = {
   reset: "\x1b[0m",
   red: "\x1b[31m",
@@ -59,19 +61,19 @@ function success(text = "", options = {}) {
 function progress(text = "", options = {}) {
   if (isSilent(options)) return;
 
-  const padding = Math.max(0, lastLength - text.length);
+  const padding = Math.max(0, lastLength - getDisplayWidth(text));
 
   process.stdout.write(
     `\r${text}${" ".repeat(padding)}`
   );
 
-  lastLength = text.length;
+  lastLength = getDisplayWidth(text);
 }
 
 function progressDone(text = "", options = {}) {
   if (isSilent(options)) return;
 
-  const padding = Math.max(0, lastLength - text.length);
+  const padding = Math.max(0, lastLength - getDisplayWidth(text));
 
   process.stdout.write(
     `\r${text}${" ".repeat(padding)}\n`

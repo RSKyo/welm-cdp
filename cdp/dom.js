@@ -1,23 +1,78 @@
-import { assertNonBlank } from "../infra/validate.js";
 import { evaluate } from "./runtime.js";
 
 function q(value) {
   return JSON.stringify(value);
 }
 
+function buildElementResolver(selector, options = {}) {
+  return `
+    (() => {
+      const elements = document.querySelectorAll(${q(selector)});
+      const count = elements.length;
+
+      if (count === 0) {
+        throw new Error("element not found");
+      }
+
+      let index = ${options.nth ?? 0};
+
+      if (index < 0) {
+        index = count + index;
+      }
+
+      if (index < 0 || index >= count) {
+        throw new Error(\`element index out of range: \${index}\`);
+      }
+
+      return elements[index];
+    })()
+  `;
+}
+
+/**
+ * 判断元素是否存在。
+ */
+export async function hasElement(targetId, selector, options = {}) {
+  const expression = `
+    (() => {
+      const el = ${buildElementResolver(selector, options)};
+
+      return el !== null;
+    })()
+  `;
+
+  return evaluate(targetId, expression, options);
+}
+
+/**
+ * 获取匹配元素数量。
+ */
+export async function getElementsCount(
+  targetId,
+  selector,
+  options = {},
+) {
+  const expression = `
+    (() => {
+      return document.querySelectorAll(${q(selector)}).length;
+    })()
+  `;
+
+  return evaluate(targetId, expression, options);
+}
+
 /**
  * 获取单个元素指定属性的值。
  */
-export async function getElementAttribute(targetId, selector, name, options = {}) {
-  selector = assertNonBlank(selector, "selector");
-  name = assertNonBlank(name, "attribute name");
-
+export async function getElementAttribute(
+  targetId,
+  selector,
+  name,
+  options = {},
+) {
   const expression = `
     (() => {
-      const el = document.querySelector(${q(selector)});
-      if (!el) {
-        throw new Error("element not found");
-      }
+      const el = ${buildElementResolver(selector, options)};
 
       if (!el.hasAttribute(${q(name)})) {
         throw new Error("attribute not found");
@@ -34,14 +89,9 @@ export async function getElementAttribute(targetId, selector, name, options = {}
  * 获取单个元素 attributes 对象
  */
 export async function getElementAttributes(targetId, selector, options = {}) {
-  selector = assertNonBlank(selector, "selector");
-
   const expression = `
     (() => {
-      const el = document.querySelector(${q(selector)});
-      if (!el) {
-        throw new Error("element not found");
-      }
+      const el = ${buildElementResolver(selector, options)};
       
       const out = {};
       for (const attr of el.attributes) {
@@ -58,14 +108,9 @@ export async function getElementAttributes(targetId, selector, options = {}) {
  * 获取单个元素 outerHTML。
  */
 export async function getElementOuterHTML(targetId, selector, options = {}) {
-  selector = assertNonBlank(selector, "selector");
-
   const expression = `
     (() => {
-      const el = document.querySelector(${q(selector)});
-      if (!el) {
-        throw new Error("element not found");
-      }
+      const el = ${buildElementResolver(selector, options)};
 
       return el.outerHTML;
     })()
@@ -78,14 +123,9 @@ export async function getElementOuterHTML(targetId, selector, options = {}) {
  * 获取单个元素 innerHTML。
  */
 export async function getElementInnerHTML(targetId, selector, options = {}) {
-  selector = assertNonBlank(selector, "selector");
-
   const expression = `
     (() => {
-      const el = document.querySelector(${q(selector)});
-      if (!el) {
-        throw new Error("element not found");
-      }
+      const el = ${buildElementResolver(selector, options)};
       
       return el.innerHTML;
     })()
@@ -98,14 +138,9 @@ export async function getElementInnerHTML(targetId, selector, options = {}) {
  * 获取单个元素 innerText。
  */
 export async function getElementInnerText(targetId, selector, options = {}) {
-  selector = assertNonBlank(selector, "selector");
-
   const expression = `
     (() => {
-      const el = document.querySelector(${q(selector)});
-      if (!el) {
-        throw new Error("element not found");
-      }
+      const el = ${buildElementResolver(selector, options)};
 
       return el.innerText;
     })()
@@ -119,14 +154,9 @@ export async function getElementInnerText(targetId, selector, options = {}) {
  * getBoundingClientRect 返回的坐标是相对于视口（viewport）的坐标，而不是相对于页面的坐标
  */
 export async function getElementBox(targetId, selector, options = {}) {
-  selector = assertNonBlank(selector, "selector");
-
   const expression = `
     (() => {
-      const el = document.querySelector(${q(selector)});
-      if (!el) {
-        throw new Error("element not found");
-      }
+      const el = ${buildElementResolver(selector, options)};
 
       const rect = el.getBoundingClientRect();
 
@@ -145,7 +175,7 @@ export async function getElementBox(targetId, selector, options = {}) {
 }
 
 export async function getElementCenter(targetId, selector, options = {}) {
-  const {centerX, centerY} = await getElementBox(targetId, selector, options);
+  const { centerX, centerY } = await getElementBox(targetId, selector, options);
 
   return {
     x: centerX,

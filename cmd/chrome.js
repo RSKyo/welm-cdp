@@ -69,7 +69,7 @@ export const CHROME_COMMANDS = {
     handler: cmd_ensureChromePage,
     usage: "chrome ensure <url> [options]",
     description: "Find or open Chrome page",
-    options: "--keyword --host --port --timeout --interval",
+    options: "--keyword --activate --host --port --timeout --interval",
   },
 
   close: {

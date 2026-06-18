@@ -18,11 +18,12 @@ import {
   end,
   pageUp,
   pageDown,
+  focusElement,
   type,
   fill,
 } from "../cdp/input.js";
 
-const CLIENT_OPTIONS = "--host --port";
+const CONNECTION_OPTIONS = "--host --port";
 
 /**
  * input.js:
@@ -43,6 +44,7 @@ const CLIENT_OPTIONS = "--host --port";
  *   input end
  *   input pageup
  *   input pagedown
+ *   input focusElement
  *   input type
  *   input fill
  */
@@ -51,133 +53,140 @@ export const INPUT_COMMANDS = {
     handler: cmd_mouseMoveTo,
     usage: "input move <targetId> <x> <y> [options]",
     description: "Move mouse to viewport position",
-    options: `--buttons --modifiers ${CLIENT_OPTIONS}`,
+    options: `--buttons --modifiers ${CONNECTION_OPTIONS}`,
   },
 
   click: {
     handler: cmd_click,
     usage: "input click <targetId> <selector> [options]",
     description: "Click element",
-    options: `--button --modifiers --block --inline --behavior --timeout --interval ${CLIENT_OPTIONS}`,
+    options: `--button --modifiers --block --inline --behavior --timeout --interval ${CONNECTION_OPTIONS}`,
   },
 
   dblclick: {
     handler: cmd_doubleClick,
     usage: "input dblclick <targetId> <selector> [options]",
     description: "Double click element",
-    options: `--button --modifiers --block --inline --behavior --timeout --interval ${CLIENT_OPTIONS}`,
+    options: `--button --modifiers --block --inline --behavior --timeout --interval ${CONNECTION_OPTIONS}`,
   },
 
   wheel: {
     handler: cmd_wheelAt,
     usage: "input wheel <targetId> <x> <y> <deltaY> [options]",
     description: "Wheel at viewport position",
-    options: `--deltaX --modifiers ${CLIENT_OPTIONS}`,
+    options: `--deltaX --modifiers ${CONNECTION_OPTIONS}`,
   },
 
   enter: {
     handler: cmd_enter,
     usage: "input enter <targetId> [options]",
     description: "Press Enter key",
-    options: `--modifiers ${CLIENT_OPTIONS}`,
+    options: `--modifiers ${CONNECTION_OPTIONS}`,
   },
 
   tab: {
     handler: cmd_tab,
     usage: "input tab <targetId> [options]",
     description: "Press Tab key",
-    options: `--modifiers ${CLIENT_OPTIONS}`,
+    options: `--modifiers ${CONNECTION_OPTIONS}`,
   },
 
   escape: {
     handler: cmd_escape,
     usage: "input escape <targetId> [options]",
     description: "Press Escape key",
-    options: `--modifiers ${CLIENT_OPTIONS}`,
+    options: `--modifiers ${CONNECTION_OPTIONS}`,
   },
 
   backspace: {
     handler: cmd_backspace,
     usage: "input backspace <targetId> [options]",
     description: "Press Backspace key",
-    options: `--modifiers ${CLIENT_OPTIONS}`,
+    options: `--modifiers ${CONNECTION_OPTIONS}`,
   },
 
   delete: {
     handler: cmd_deleteKey,
     usage: "input delete <targetId> [options]",
     description: "Press Delete key",
-    options: `--modifiers ${CLIENT_OPTIONS}`,
+    options: `--modifiers ${CONNECTION_OPTIONS}`,
   },
 
   up: {
     handler: cmd_arrowUp,
     usage: "input up <targetId> [options]",
     description: "Press ArrowUp key",
-    options: `--modifiers ${CLIENT_OPTIONS}`,
+    options: `--modifiers ${CONNECTION_OPTIONS}`,
   },
 
   down: {
     handler: cmd_arrowDown,
     usage: "input down <targetId> [options]",
     description: "Press ArrowDown key",
-    options: `--modifiers ${CLIENT_OPTIONS}`,
+    options: `--modifiers ${CONNECTION_OPTIONS}`,
   },
 
   left: {
     handler: cmd_arrowLeft,
     usage: "input left <targetId> [options]",
     description: "Press ArrowLeft key",
-    options: `--modifiers ${CLIENT_OPTIONS}`,
+    options: `--modifiers ${CONNECTION_OPTIONS}`,
   },
 
   right: {
     handler: cmd_arrowRight,
     usage: "input right <targetId> [options]",
     description: "Press ArrowRight key",
-    options: `--modifiers ${CLIENT_OPTIONS}`,
+    options: `--modifiers ${CONNECTION_OPTIONS}`,
   },
 
   home: {
     handler: cmd_home,
     usage: "input home <targetId> [options]",
     description: "Press Home key",
-    options: `--modifiers ${CLIENT_OPTIONS}`,
+    options: `--modifiers ${CONNECTION_OPTIONS}`,
   },
 
   end: {
     handler: cmd_end,
     usage: "input end <targetId> [options]",
     description: "Press End key",
-    options: `--modifiers ${CLIENT_OPTIONS}`,
+    options: `--modifiers ${CONNECTION_OPTIONS}`,
   },
 
   pageup: {
     handler: cmd_pageUp,
     usage: "input pageup <targetId> [options]",
     description: "Press PageUp key",
-    options: `--modifiers ${CLIENT_OPTIONS}`,
+    options: `--modifiers ${CONNECTION_OPTIONS}`,
   },
 
   pagedown: {
     handler: cmd_pageDown,
     usage: "input pagedown <targetId> [options]",
     description: "Press PageDown key",
-    options: `--modifiers ${CLIENT_OPTIONS}`,
+    options: `--modifiers ${CONNECTION_OPTIONS}`,
+  },
+
+  focus: {
+    handler: cmd_focusElement,
+    usage: "input focus <targetId> <selector> [options]",
+    description: "Focus element",
+    options: `${CONNECTION_OPTIONS}`,
   },
 
   type: {
     handler: cmd_type,
     usage: "input type <targetId> <selector> <text> [options]",
     description: "Type text into element",
-    options: `--clear --block --inline --behavior --timeout --interval ${CLIENT_OPTIONS}`,
+    options: `--clear --block --inline --behavior --timeout --interval ${CONNECTION_OPTIONS}`,
   },
 
   fill: {
     handler: cmd_fill,
     usage: "input fill <targetId> <selector> <text> [options]",
     description: "Fill element value",
-    options: `--block --inline --behavior --timeout --interval ${CLIENT_OPTIONS}`,
+    options: `--block --inline --behavior --timeout --interval ${CONNECTION_OPTIONS}`,
   },
 };
 
@@ -419,6 +428,20 @@ export async function cmd_pageDown(ctx) {
   const result = await pageDown(targetId, options);
 
   log.info(`Pressed PageDown: ${targetId}`, options);
+
+  return result;
+}
+
+/**
+ * 聚焦元素。
+ */
+export async function cmd_focusElement(ctx) {
+  const { argv, options } = ctx;
+  const [targetId,selector] = argv;
+
+  const result = await focusElement(targetId,selector, options);
+
+  log.info(`Focused element: ${selector}`, options);
 
   return result;
 }

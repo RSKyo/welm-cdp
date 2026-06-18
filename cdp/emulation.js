@@ -1,11 +1,9 @@
-import { assertNonBlank } from "../infra/validate.js";
 import { getClient } from "./client.js";
 
 /**
  * 获取 Emulation 域客户端。
  */
 async function getEmulation(targetId, options = {}) {
-  targetId = assertNonBlank(targetId, "targetId");
 
   const { Emulation } = await getClient(targetId, options);
 
@@ -108,7 +106,6 @@ export async function setUserAgent(
   userAgent,
   options = {},
 ) {
-  userAgent = assertNonBlank(userAgent, "userAgent");
 
   const Emulation = await getEmulation(targetId, options);
 

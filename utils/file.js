@@ -3,7 +3,6 @@ import fsp from "node:fs/promises";
 import path from "node:path";
 
 import { ERROR_CODE, createError } from "../infra/error.js";
-import { assertNonBlank } from "../infra/validate.js";
 
 // -----------------------------------------------------------------------------
 // private
@@ -61,13 +60,11 @@ function isHidden(file) {
 }
 
 function readFile(file) {
-  file = assertNonBlank(file, "file");
 
   return fs.readFileSync(file);
 }
 
 async function writeFile(file, data) {
-  file = assertNonBlank(file, "file");
 
   if (data == null) {
     throw createError(ERROR_CODE.INVALID, "missing data");
@@ -91,7 +88,6 @@ async function writeFile(file, data) {
  *   文件或目录路径
  */
 export function exists(input) {
-  input = assertNonBlank(input, "input");
 
   return fs.existsSync(input);
 }
@@ -103,7 +99,6 @@ export function exists(input) {
  *   文件路径
  */
 export function isFile(file) {
-  file = assertNonBlank(file, "file");
 
   return fs.existsSync(file) && fs.statSync(file).isFile();
 }
@@ -115,7 +110,6 @@ export function isFile(file) {
  *   目录路径
  */
 export function isDirectory(dir) {
-  dir = assertNonBlank(dir, "dir");
 
   return fs.existsSync(dir) && fs.statSync(dir).isDirectory();
 }
@@ -133,7 +127,6 @@ export function isDirectory(dir) {
  * 目录不存在时自动创建。
  */
 export async function ensureDir(dir) {
-  dir = assertNonBlank(dir, "dir");
 
   await fsp.mkdir(dir, {
     recursive: true,
@@ -182,7 +175,6 @@ export async function ensureDir(dir) {
  *   文件绝对路径数组
  */
 export function getFiles(input, options = {}) {
-  input = assertNonBlank(input, "input");
 
   const { recursive = true, hidden = false } = options;
 

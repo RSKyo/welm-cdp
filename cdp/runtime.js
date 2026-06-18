@@ -2,8 +2,6 @@
 import { DEFAULT_TIMEOUT, DEFAULT_INTERVAL } from "../infra/config.js";
 import { ERROR_CODE, createError } from "../infra/error.js";
 import { sleep } from "../infra/utils.js";
-import { assertNonBlank } from "../infra/validate.js";
-
 // cdp
 import { getClient } from "./client.js";
 
@@ -24,9 +22,6 @@ import { getClient } from "./client.js";
  *   表达式执行结果
  */
 export async function evaluate(targetId, expression, options = {}) {
-  targetId = assertNonBlank(targetId, "targetId");
-  expression = assertNonBlank(expression, "expression");
-
   const client = await getClient(targetId, options);
   const { Runtime } = client;
 
@@ -100,12 +95,14 @@ export async function poll(targetId, expression, options = {}) {
   const interval = options.interval ?? DEFAULT_INTERVAL;
   const start = Date.now();
   let value;
+  let times = 0;
 
   while (Date.now() - start < timeout) {
     value = await evaluate(targetId, expression, options);
+    times++;
 
     if (isPollMatched(value)) {
-      return value;
+      return { value, times };
     }
 
     await sleep(interval);
@@ -116,4 +113,28 @@ export async function poll(targetId, expression, options = {}) {
     interval,
     elapsed: Date.now() - start,
   });
+}
+
+export async function readClipboard(targetId, options = {}) {
+  const expression = `
+    (async () => {
+      return await navigator.clipboard.readText();
+    })()
+  `;
+
+  return await evaluate(targetId, expression, options);
+}
+
+export async function writeClipboard(targetId, text, options = {}) {
+  const expression = `
+    (async () => {
+      await navigator.clipboard.writeText(
+        ${JSON.stringify(text)}
+      );
+
+      return true;
+    })()
+  `;
+
+  return await evaluate(targetId, expression, options);
 }

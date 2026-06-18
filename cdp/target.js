@@ -1,7 +1,7 @@
 import CDP from "chrome-remote-interface";
 import { DEFAULT_HOST, DEFAULT_PORT } from "../infra/config.js";
 import { ERROR_CODE, createError } from "../infra/error.js";
-import { isHttpUrl, assertNonBlank } from "../infra/validate.js";
+import { isHttpUrl } from "../infra/validate.js";
 
 export const TARGET_TYPE = {
   PAGE: "page",
@@ -32,18 +32,16 @@ export async function listTargets(options = {}) {
 
     case TARGET_TYPE.WEBPAGE:
       targets = targets.filter(
-        (target) => target.type === TARGET_TYPE.PAGE && isHttpUrl(target.url ?? ""),
+        (target) =>
+          target.type === TARGET_TYPE.PAGE && isHttpUrl(target.url ?? ""),
       );
       break;
-
   }
 
   return targets.map(normalizeTarget);
 }
 
 export async function getTarget(targetId, options = {}) {
-  targetId = assertNonBlank(targetId, "targetId");
-
   const targets = await listTargets(options);
   const target = targets.find((target) => target.id === targetId);
 
@@ -55,8 +53,6 @@ export async function getTarget(targetId, options = {}) {
 }
 
 export async function findTarget(keyword, options = {}) {
-  keyword = assertNonBlank(keyword, "keyword");
-
   const search = keyword.toLowerCase();
   const targets = await listTargets(options);
 
@@ -70,8 +66,6 @@ export async function findTarget(keyword, options = {}) {
 }
 
 export async function activateTarget(targetId, options = {}) {
-  targetId = assertNonBlank(targetId, "targetId");
-
   const host = options.host ?? DEFAULT_HOST;
   const port = options.port ?? DEFAULT_PORT;
 
@@ -83,8 +77,6 @@ export async function activateTarget(targetId, options = {}) {
 }
 
 export async function openTarget(url, options = {}) {
-  url = assertNonBlank(url, "url");
-
   const host = options.host ?? DEFAULT_HOST;
   const port = options.port ?? DEFAULT_PORT;
 
@@ -98,8 +90,6 @@ export async function openTarget(url, options = {}) {
 }
 
 export async function closeTarget(targetId, options = {}) {
-  targetId = assertNonBlank(targetId, "targetId");
-
   const host = options.host ?? DEFAULT_HOST;
   const port = options.port ?? DEFAULT_PORT;
 

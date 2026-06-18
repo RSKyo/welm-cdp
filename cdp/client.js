@@ -1,11 +1,6 @@
 import CDP from "chrome-remote-interface";
 import { DEFAULT_HOST, DEFAULT_PORT } from "../infra/config.js";
-import {
-  ERROR_CODE,
-  createError,
-  isClientError,
-} from "../infra/error.js";
-import { assertNonBlank } from "../infra/validate.js";
+import { ERROR_CODE, createError, isClientError } from "../infra/error.js";
 
 /**
  * clientKey -> client
@@ -13,8 +8,6 @@ import { assertNonBlank } from "../infra/validate.js";
 const clientPromiseMap = new Map();
 
 function getClientKey(targetId, options = {}) {
-  targetId = assertNonBlank(targetId, "targetId");
-
   const host = options.host ?? DEFAULT_HOST;
   const port = options.port ?? DEFAULT_PORT;
 
@@ -41,8 +34,6 @@ function isTargetNotFoundError(error) {
 }
 
 async function createClient(targetId, options = {}) {
-  targetId = assertNonBlank(targetId, "targetId");
-
   const host = options.host ?? DEFAULT_HOST;
   const port = options.port ?? DEFAULT_PORT;
   const clientKey = getClientKey(targetId, options);
@@ -85,8 +76,6 @@ async function createClient(targetId, options = {}) {
  * 获取 client（自动复用）
  */
 export async function getClient(targetId, options = {}) {
-  targetId = assertNonBlank(targetId, "targetId");
-
   const clientKey = getClientKey(targetId, options);
   let clientPromise = clientPromiseMap.get(clientKey);
 
@@ -106,8 +95,6 @@ export async function getClient(targetId, options = {}) {
  * 关闭 client
  */
 export async function closeClient(targetId, options = {}) {
-  targetId = assertNonBlank(targetId, "targetId");
-
   const clientKey = getClientKey(targetId, options);
   const clientPromise = clientPromiseMap.get(clientKey);
   if (!clientPromise) return;
@@ -127,9 +114,7 @@ export async function closeAllClients() {
   const promises = [];
 
   for (const p of clientPromiseMap.values()) {
-    promises.push(
-      p.then((client) => client.close()).catch(() => {}),
-    );
+    promises.push(p.then((client) => client.close()).catch(() => {}));
   }
 
   await Promise.all(promises);

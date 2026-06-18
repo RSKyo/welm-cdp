@@ -1,20 +1,43 @@
 import { ERROR_CODE, createError } from "../infra/error.js";
-import { assertNonBlank } from "../infra/validate.js";
 import { getClient } from "./client.js";
 import { evaluate } from "./runtime.js";
 import { waitEditable, waitClickable } from "./wait.js";
 import { getElementCenter } from "./dom.js";
+import { log } from "../infra/log.js";
 
 function q(value) {
   return JSON.stringify(value);
+}
+
+function buildElementResolver(selector, options = {}) {
+  return `
+    (() => {
+      const elements = document.querySelectorAll(${q(selector)});
+      const count = elements.length;
+
+      if (count === 0) {
+        throw new Error("element not found");
+      }
+
+      let index = ${options.nth ?? 0};
+
+      if (index < 0) {
+        index = count + index;
+      }
+
+      if (index < 0 || index >= count) {
+        throw new Error(\`element index out of range: \${index}\`);
+      }
+
+      return elements[index];
+    })()
+  `;
 }
 
 /**
  * 获取 Input 域客户端。
  */
 async function getInput(targetId, options = {}) {
-  targetId = assertNonBlank(targetId, "targetId");
-
   const { Input } = await getClient(targetId, options);
 
   return Input;
@@ -145,14 +168,9 @@ async function doubleClickAt(targetId, x, y, options = {}) {
  * 滚动到元素进入视口。
  */
 async function scrollIntoView(targetId, selector, options = {}) {
-  selector = assertNonBlank(selector, "selector");
-
   const expression = `
     (() => {
-      const el = document.querySelector(${q(selector)});
-      if (!el) {
-        throw new Error("element not found");
-      }
+      const el = ${buildElementResolver(selector, options)};
 
       el.scrollIntoView({
         block: ${q(options.block ?? "center")},
@@ -172,10 +190,10 @@ async function scrollIntoView(targetId, selector, options = {}) {
  * 点击元素。
  */
 export async function click(targetId, selector, options = {}) {
-  await waitClickable(targetId, selector, options);
   await scrollIntoView(targetId, selector, options);
-  const point = await getElementCenter(targetId, selector, options);
+  await waitClickable(targetId, selector, options);
 
+  const point = await getElementCenter(targetId, selector, options);
   return clickAt(targetId, point.x, point.y, options);
 }
 
@@ -183,10 +201,10 @@ export async function click(targetId, selector, options = {}) {
  * 双击元素。
  */
 export async function doubleClick(targetId, selector, options = {}) {
-  await waitClickable(targetId, selector, options);
   await scrollIntoView(targetId, selector, options);
-  const point = await getElementCenter(targetId, selector, options);
+  await waitClickable(targetId, selector, options);
 
+  const point = await getElementCenter(targetId, selector, options);
   return doubleClickAt(targetId, point.x, point.y, options);
 }
 
@@ -293,8 +311,6 @@ const KEY_MAP = {
 };
 
 function buildKeyEvent(key, options = {}) {
-  key = assertNonBlank(key, "key");
-
   const preset = KEY_MAP[key] ?? {};
 
   return {
@@ -408,17 +424,42 @@ export async function pageDown(targetId, options = {}) {
 /**
  * 聚焦元素。
  */
-async function focusElement(targetId, selector, options = {}) {
-  selector = assertNonBlank(selector, "selector");
-
+export async function focusElement(targetId, selector, options = {}) {
   const expression = `
     (() => {
-      const el = document.querySelector(${q(selector)});
-      if (!el) {
-        throw new Error("element not found");
-      }
+      const el = ${buildElementResolver(selector, options)};
 
       el.focus();
+
+      // input / textarea
+      if (
+        el instanceof HTMLInputElement ||
+        el instanceof HTMLTextAreaElement
+      ) {
+        const len = el.value.length;
+        el.setSelectionRange(len, len);
+
+        return {
+          type: "input",
+          length: len,
+        };
+      }
+
+      // contenteditable
+      if (el.isContentEditable) {
+        const selection = window.getSelection();
+        const range = document.createRange();
+
+        range.selectNodeContents(el);
+        range.collapse(false);
+
+        selection.removeAllRanges();
+        selection.addRange(range);
+
+        return {
+          type: "contenteditable",
+        };
+      }
 
       return true;
     })()
@@ -431,15 +472,10 @@ async function focusElement(targetId, selector, options = {}) {
 /**
  * 清空元素值。
  */
-async function clearElementValue(targetId, selector, options = {}) {
-  selector = assertNonBlank(selector, "selector");
-
+export async function clearElementValue(targetId, selector, options = {}) {
   const expression = `
     (() => {
-      const el = document.querySelector(${q(selector)});
-      if (!el) {
-        throw new Error("element not found");
-      }
+      const el = ${buildElementResolver(selector, options)};
 
       el.focus();
 
@@ -474,12 +510,6 @@ async function clearElementValue(targetId, selector, options = {}) {
  * 更接近真实键盘输入，适合触发输入法/前端监听。
  */
 export async function type(targetId, selector, text, options = {}) {
-  selector = assertNonBlank(selector, "selector");
-
-  if (text == null) {
-    throw createError(ERROR_CODE.INVALID, "missing text");
-  }
-
   await waitEditable(targetId, selector, options);
   await scrollIntoView(targetId, selector, options);
   await focusElement(targetId, selector, options);
@@ -503,19 +533,11 @@ export async function type(targetId, selector, text, options = {}) {
  * 会覆盖原值，不需要 clear。
  */
 export async function fill(targetId, selector, text, options = {}) {
-  selector = assertNonBlank(selector, "selector");
-
-  if (text == null) {
-    throw createError(ERROR_CODE.INVALID, "missing text");
-  }
-
   await waitEditable(targetId, selector, options);
   await scrollIntoView(targetId, selector, options);
   await focusElement(targetId, selector, options);
 
-  const textBase64 = Buffer
-    .from(String(text), "utf8")
-    .toString("base64");
+  const textBase64 = Buffer.from(String(text), "utf8").toString("base64");
 
   const expression = `
     (() => {
@@ -547,28 +569,25 @@ export async function fill(targetId, selector, text, options = {}) {
       };
 
       const text = decodeBase64Utf8(${q(textBase64)});
-      const element = document.querySelector(${q(selector)});
 
-      if (!element) {
-        throw new Error("element not found");
-      }
+      const el = ${buildElementResolver(selector, options)};
 
-      if (element.isContentEditable) {
-        element.textContent = text;
-      } else if ("value" in element) {
-        setFormValue(element, text);
+      if (el.isContentEditable) {
+        el.textContent = text;
+      } else if ("value" in el) {
+        setFormValue(el, text);
       } else {
         throw new Error("element is not an input or contenteditable element");
       }
 
-      element.dispatchEvent(new InputEvent("input", {
+      el.dispatchEvent(new InputEvent("input", {
         bubbles: true,
         cancelable: true,
         inputType: "insertText",
         data: text,
       }));
 
-      element.dispatchEvent(new Event("change", {
+      el.dispatchEvent(new Event("change", {
         bubbles: true,
       }));
 

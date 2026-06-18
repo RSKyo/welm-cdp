@@ -14,7 +14,6 @@ import {
 import { ERROR_CODE, createError } from "../infra/error.js";
 import { log } from "../infra/log.js";
 import { sleep } from "../infra/utils.js";
-import { assertNonBlank, assertHttpUrl } from "../infra/validate.js";
 
 // cdp
 import {
@@ -171,17 +170,23 @@ async function launchChrome(options = {}) {
 export async function ensureChrome(options = {}) {
   const host = options.host ?? DEFAULT_HOST;
   const port = options.port ?? DEFAULT_PORT;
+
+
   const chromeBin = await checkChromeBin(options.chromeBin ?? getChromeBin());
   const userDataDir = options.userDataDir ?? CHROME_USER_DATA_DIR;
 
   if (!(await isCdpReady(options))) {
+    const startTime = Date.now();
+
     log.progress(`Starting Chrome...`, options);
     await launchChrome(options);
+
     log.progress(`Waiting for Chrome CDP service...`, options);
     await waitCdpReady(options);
-  }
 
-  log.info(`Chrome is ready`, options);
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    log.progressDone(`Chrome is ready (${elapsed}s)`, options);
+  }
 
   return {
     host,
@@ -222,7 +227,6 @@ export async function listChromePages(options = {}) {
  *   Chrome Page
  */
 export async function getChromePage(targetId, options = {}) {
-  targetId = assertNonBlank(targetId, "targetId");
   options.type = options.type ?? TARGET_TYPE.WEBPAGE;
 
   const target = await getTarget(targetId, options);
@@ -244,7 +248,6 @@ export async function getChromePage(targetId, options = {}) {
  *   Chrome Page | null
  */
 export async function findChromePage(keyword, options = {}) {
-  keyword = assertNonBlank(keyword, "keyword");
   options.type = options.type ?? TARGET_TYPE.WEBPAGE;
 
   const target = await findTarget(keyword, options);
@@ -269,8 +272,6 @@ export async function findChromePage(keyword, options = {}) {
  *   Chrome Page
  */
 export async function activateChromePage(targetId, options = {}) {
-  targetId = assertNonBlank(targetId, "targetId");
-
   const target = await getTarget(targetId, {
     ...options,
     type: TARGET_TYPE.WEBPAGE,
@@ -300,8 +301,7 @@ export async function activateChromePage(targetId, options = {}) {
  *   Chrome Page
  */
 export async function openChromePage(url, options = {}) {
-  url = assertHttpUrl(url);
-
+  url;
   // 创建 Target 后，会产生一个空白页 about:blank，此时并不能保证目标 url 开始加载
   // 接下来 Chrome 什么时候真正导航过去，是异步的
   let target = await openTarget(url, options);
@@ -335,19 +335,28 @@ export async function openChromePage(url, options = {}) {
  *   Chrome Page
  */
 export async function ensureChromePage(url, options = {}) {
-  url = assertHttpUrl(url);
-
+  url;
   let target;
   const keyword = options.keyword ?? url;
 
   target = await findTarget(keyword, { ...options, type: TARGET_TYPE.WEBPAGE });
 
   if (target) {
-    await activateTarget(target.id, options);
+    if (options.activate) {
+      await activateTarget(target.id, options);
+    }
   } else {
+    const startTime = Date.now();
+
+    log.progress("Opening page...", options);
     target = await openTarget(url, options);
+
+    log.progress("Waiting for page...", options);
     await waitPage(target.id, options);
     target = await getTarget(target.id, options);
+
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    log.progressDone(`Page is ready (${elapsed}s)`, options);
   }
 
   return normalizePage(target);
@@ -367,8 +376,6 @@ export async function ensureChromePage(url, options = {}) {
  *   Chrome Page
  */
 export async function closeChromePage(targetId, options = {}) {
-  targetId = assertNonBlank(targetId, "targetId");
-
   const target = await getTarget(targetId, {
     ...options,
     type: TARGET_TYPE.WEBPAGE,

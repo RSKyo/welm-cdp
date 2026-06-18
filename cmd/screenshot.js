@@ -2,7 +2,7 @@ import { log } from "../infra/log.js";
 
 import { saveScreenshot } from "../cdp/screenshot.js";
 
-const CLIENT_OPTIONS = "--host --port";
+const CONNECTION_OPTIONS = "--host --port";
 
 /**
  *   screenshot save
@@ -12,7 +12,7 @@ export const SCREENSHOT_COMMANDS = {
     handler: cmd_saveScreenshot,
     usage: "screenshot capture <targetId> [options]",
     description: "Capture page screenshot",
-    options: `--fullPage --dir --format --quality --clip ${CLIENT_OPTIONS}`,
+    options: `--fullPage --dir --format --quality --clip ${CONNECTION_OPTIONS}`,
   },
 };
 

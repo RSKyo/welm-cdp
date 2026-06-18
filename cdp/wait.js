@@ -1,11 +1,35 @@
 import { DEFAULT_TIMEOUT } from "../infra/config.js";
 import { ERROR_CODE, createError } from "../infra/error.js";
-import { assertNonBlank } from "../infra/validate.js";
 import { getClient } from "./client.js";
 import { poll } from "./runtime.js";
 
 function q(value) {
   return JSON.stringify(value);
+}
+
+function buildElementResolver(selector, options = {}) {
+  return `
+    (() => {
+      const elements = document.querySelectorAll(${q(selector)});
+      const count = elements.length;
+
+      if (count === 0) {
+        return null;
+      }
+
+      let index = ${options.nth ?? 0};
+
+      if (index < 0) {
+        index = count + index;
+      }
+
+      if (index < 0 || index >= count) {
+        return null;
+      }
+
+      return elements[index];
+    })()
+  `;
 }
 
 /**
@@ -23,14 +47,35 @@ function q(value) {
  *   host     CDP Host
  *   port     CDP Port
  */
-export function waitSelector(targetId, selector, options = {}) {
-  targetId = assertNonBlank(targetId, "targetId");
-  selector = assertNonBlank(selector, "selector");
-
+export function waitAppear(targetId, selector, options = {}) {
   const expression = `
     (() => {
-      const el = document.querySelector(${q(selector)});
+      const el = ${buildElementResolver(selector, options)};
       return !!el;
+    })()
+  `;
+
+  return poll(targetId, expression, options);
+}
+
+/**
+ * 等待 selector 消失。
+ *
+ * 消失条件：
+ *   document.querySelector(selector) === null
+ *
+ * options:
+ *   nth      第几个匹配项，默认 0，-1 表示最后一个
+ *   timeout  最大等待时间(ms)
+ *   interval 轮询间隔(ms)
+ *   host     CDP Host
+ *   port     CDP Port
+ */
+export function waitDisappear(targetId, selector, options = {}) {
+  const expression = `
+    (() => {
+      const el = ${buildElementResolver(selector, options)};
+      return !el;
     })()
   `;
 
@@ -60,12 +105,9 @@ export function waitSelector(targetId, selector, options = {}) {
  *   port     CDP Port
  */
 export function waitVisible(targetId, selector, options = {}) {
-  targetId = assertNonBlank(targetId, "targetId");
-  selector = assertNonBlank(selector, "selector");
-
   const expression = `
     (() => {
-      const el = document.querySelector(${q(selector)});
+      const el = ${buildElementResolver(selector, options)};
       if (!el) return false;
 
       const style = window.getComputedStyle(el);
@@ -107,12 +149,9 @@ export function waitVisible(targetId, selector, options = {}) {
  *   port     CDP Port
  */
 export function waitEditable(targetId, selector, options = {}) {
-  targetId = assertNonBlank(targetId, "targetId");
-  selector = assertNonBlank(selector, "selector");
-
   const expression = `
     (() => {
-      const el = document.querySelector(${q(selector)});
+      const el = ${buildElementResolver(selector, options)};
       if (!el) return false;
 
       const style = window.getComputedStyle(el);
@@ -168,12 +207,9 @@ export function waitEditable(targetId, selector, options = {}) {
  *   port     CDP Port
  */
 export function waitClickable(targetId, selector, options = {}) {
-  targetId = assertNonBlank(targetId, "targetId");
-  selector = assertNonBlank(selector, "selector");
-
   const expression = `
     (() => {
-      const el = document.querySelector(${q(selector)});
+      const el = ${buildElementResolver(selector, options)};
       if (!el) return false;
 
       const style = window.getComputedStyle(el);
@@ -183,7 +219,6 @@ export function waitClickable(targetId, selector, options = {}) {
         style.display !== 'none' &&
         style.visibility !== 'hidden' &&
         style.opacity !== '0' &&
-        style.pointerEvents !== 'none' &&
         rect.width > 0 &&
         rect.height > 0;
 
@@ -226,17 +261,13 @@ export function waitClickable(targetId, selector, options = {}) {
  *   port     CDP Port
  */
 export function waitMatch(targetId, selector, pattern, options = {}) {
-  targetId = assertNonBlank(targetId, "targetId");
-  selector = assertNonBlank(selector, "selector");
-  pattern = assertNonBlank(pattern, "pattern");
-
   const mode = ["includes", "equals", "regex"].includes(options.mode)
     ? options.mode
     : "includes";
 
   const expression = `
     (() => {
-      const el = document.querySelector(${q(selector)});
+      const el = ${buildElementResolver(selector, options)};
       if (!el) return false;
 
       const text = (el.innerText ?? el.textContent ?? '').trim();
@@ -253,6 +284,41 @@ export function waitMatch(targetId, selector, pattern, options = {}) {
       }
 
       return text.includes(pattern) ? text : '';
+    })()
+  `;
+
+  return poll(targetId, expression, options);
+}
+
+/**
+ * 等待元素数量等于指定值。
+ */
+export function waitCount(targetId, selector, expectedCount, options = {}) {
+  const expression = `
+    (() => {
+      return document.querySelectorAll(
+        ${q(selector)}
+      ).length === ${expectedCount};
+    })()
+  `;
+
+  return poll(targetId, expression, options);
+}
+
+/**
+ * 等待元素数量大于指定值。
+ */
+export function waitCountGreater(
+  targetId,
+  selector,
+  expectedCount,
+  options = {},
+) {
+  const expression = `
+    (() => {
+      return document.querySelectorAll(
+        ${q(selector)}
+      ).length > ${expectedCount};
     })()
   `;
 
@@ -292,9 +358,14 @@ function waitEmitterEvent(emitter, eventName, options = {}) {
     const timer = setTimeout(() => {
       finish(
         reject,
-        createError(ERROR_CODE.TIMEOUT, "event {eventName} wait timeout", null, {
-          eventName,
-        }),
+        createError(
+          ERROR_CODE.TIMEOUT,
+          "event {eventName} wait timeout",
+          null,
+          {
+            eventName,
+          },
+        ),
       );
     }, timeout);
 
@@ -332,8 +403,6 @@ function waitEmitterEvent(emitter, eventName, options = {}) {
  *   port     CDP Port
  */
 export async function waitPage(targetId, options = {}) {
-  targetId = assertNonBlank(targetId, "targetId");
-
   const client = await getClient(targetId, options);
   await client.Page.enable();
 

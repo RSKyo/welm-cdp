@@ -1,6 +1,8 @@
 import { log } from "../infra/log.js";
 
 import {
+  hasElement,
+  getElementsCount,
   getElementAttribute,
   getElementAttributes,
   getElementOuterHTML,
@@ -10,7 +12,7 @@ import {
   getElementCenter,
 } from "../cdp/dom.js";
 
-const CLIENT_OPTIONS = "--host --port";
+const CONNECTION_OPTIONS = "--host --port";
 
 /**
  *   dom attr
@@ -22,55 +24,97 @@ const CLIENT_OPTIONS = "--host --port";
  *   dom center
  */
 export const DOM_COMMANDS = {
+  has: {
+    handler: cmd_hasElement,
+    usage: "dom has <targetId> <selector> [options]",
+    description: "Check if element exists",
+    options: `${CONNECTION_OPTIONS}`,
+  },
+
+  count: {
+    handler: cmd_getElementsCount,
+    usage: "dom count <targetId> <selector> [options]",
+    description: "Get matching elements count",
+    options: `${CONNECTION_OPTIONS}`,
+  },
+
   attr: {
     handler: cmd_getElementAttribute,
     usage: "dom attr <targetId> <selector> <name> [options]",
     description: "Get element attribute",
-    options: `${CLIENT_OPTIONS}`,
+    options: `${CONNECTION_OPTIONS}`,
   },
 
   attrs: {
     handler: cmd_getElementAttributes,
     usage: "dom attrs <targetId> <selector> [options]",
     description: "Get all element attributes",
-    options: `${CLIENT_OPTIONS}`,
+    options: `${CONNECTION_OPTIONS}`,
   },
 
   outerhtml: {
     handler: cmd_getElementOuterHTML,
     usage: "dom outerhtml <targetId> <selector> [options]",
     description: "Get element outerHTML",
-    options: `${CLIENT_OPTIONS}`,
+    options: `${CONNECTION_OPTIONS}`,
   },
 
-  html: {
+  innerhtml: {
     handler: cmd_getElementInnerHTML,
-    usage: "dom html <targetId> <selector> [options]",
+    usage: "dom innerhtml <targetId> <selector> [options]",
     description: "Get element innerHTML",
-    options: `${CLIENT_OPTIONS}`,
+    options: `${CONNECTION_OPTIONS}`,
   },
 
   text: {
     handler: cmd_getElementInnerText,
     usage: "dom text <targetId> <selector> [options]",
     description: "Get element text",
-    options: `${CLIENT_OPTIONS}`,
+    options: `${CONNECTION_OPTIONS}`,
   },
 
   box: {
     handler: cmd_getElementBox,
     usage: "dom box <targetId> <selector> [options]",
     description: "Get element bounding box",
-    options: `${CLIENT_OPTIONS}`,
+    options: `${CONNECTION_OPTIONS}`,
   },
 
   center: {
     handler: cmd_getElementCenter,
     usage: "dom center <targetId> <selector> [options]",
     description: "Get element center point",
-    options: `${CLIENT_OPTIONS}`,
+    options: `${CONNECTION_OPTIONS}`,
   },
 };
+
+/**
+ * 判断元素是否存在。
+ */
+export async function cmd_hasElement(ctx) {
+  const { argv, options } = ctx;
+  const [targetId, selector] = argv;
+
+  const result = await hasElement(targetId, selector, options);
+
+  log.info(`Element exists: ${selector} => ${result}`, options);
+
+  return result;
+}
+
+/**
+ * 获取匹配元素数量。
+ */
+export async function cmd_getElementsCount(ctx) {
+  const { argv, options } = ctx;
+  const [targetId, selector] = argv;
+
+  const result = await getElementsCount(targetId, selector, options);
+
+  log.info(`Elements count: ${selector} => ${result}`, options);
+
+  return result;
+}
 
 /**
  * 获取元素指定属性。

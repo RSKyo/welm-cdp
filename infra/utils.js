@@ -72,3 +72,13 @@ export function objectToPairArray(object = {}) {
 
   return array;
 }
+
+export function getDisplayWidth(text) {
+  let width = 0;
+
+  for (const ch of text) {
+    width += ch.charCodeAt(0) > 255 ? 2 : 1;
+  }
+
+  return width;
+}
