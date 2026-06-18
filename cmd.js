@@ -8,6 +8,7 @@ import { WAIT_COMMANDS } from "./cmd/wait.js";
 import { DOM_COMMANDS } from "./cmd/dom.js";
 import { INPUT_COMMANDS } from "./cmd/input.js";
 import { SCREENSHOT_COMMANDS } from "./cmd/screenshot.js";
+import { WATCH_COMMANDS } from "./cmd/watch.js";
 import { FILE_COMMANDS } from "./cmd/file.js";
 
 // 一级命令分组
@@ -17,6 +18,7 @@ const COMMAND_GROUPS = {
   dom: DOM_COMMANDS,
   input: INPUT_COMMANDS,
   screenshot: SCREENSHOT_COMMANDS,
+  watch: WATCH_COMMANDS,
   file: FILE_COMMANDS,
 };
 
