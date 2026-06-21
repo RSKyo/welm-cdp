@@ -12,14 +12,14 @@ import { getClient } from "./client.js";
  *   CDP Target ID
  *
  * expression:
- *   在页面中执行的 JavaScript 表达式
+ *   JavaScript 表达式
  *
  * options:
  *   host  CDP Host
  *   port  CDP Port
  *
  * 返回：
- *   表达式执行结果
+ *   expression 的执行结果
  */
 export async function evaluate(targetId, expression, options = {}) {
   const client = await getClient(targetId, options);
@@ -61,12 +61,19 @@ export async function evaluate(targetId, expression, options = {}) {
  *   undefined  -> false
  *   false      -> false
  *   ""         -> false
+ *   0          -> false
  *   其它值     -> true
  */
-function isPollMatched(value) {
+function defaultMatcher(value) {
   if (value == null) return false;
 
-  if (value === false) return false;
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (typeof value === "number") {
+    return value !== 0;
+  }
 
   if (typeof value === "string") {
     return value.trim() !== "";
@@ -76,33 +83,48 @@ function isPollMatched(value) {
 }
 
 /**
- * 轮询执行表达式直到条件满足。
+ * 轮询执行 expression，
+ * 直到返回值满足 matcher 条件。
  *
- * targetId:
- *   CDP Target ID
+ * matcher 连续命中 matchTimes 次后返回结果。
  *
- * expression:
- *   在页面中执行的 JavaScript 表达式
+ * 默认 matcher：
+ * - null / undefined -> false
+ * - false -> false
+ * - 0 -> false
+ * - 空字符串 -> false
+ * - 其它值 -> true
  *
- * options:
- *   timeout  最大等待时间(ms)
- *   interval 轮询间隔(ms)
- *   host     CDP Host
- *   port     CDP Port
+ * 默认 matchTimes 为 1。
  */
 export async function poll(targetId, expression, options = {}) {
   const timeout = options.timeout ?? DEFAULT_TIMEOUT;
   const interval = options.interval ?? DEFAULT_INTERVAL;
+  const matcher = options.matcher ?? defaultMatcher;
+  const matchTimes = options.matchTimes ?? 1;
+
   const start = Date.now();
+
   let value;
   let times = 0;
+  let matchedTimes = 0;
 
   while (Date.now() - start < timeout) {
     value = await evaluate(targetId, expression, options);
     times++;
 
-    if (isPollMatched(value)) {
-      return { value, times };
+    if (matcher(value)) {
+      matchedTimes++;
+
+      if (matchedTimes >= matchTimes) {
+        return {
+          value,
+          times,
+          matchedTimes,
+        };
+      }
+    } else {
+      matchedTimes = 0;
     }
 
     await sleep(interval);
@@ -113,28 +135,4 @@ export async function poll(targetId, expression, options = {}) {
     interval,
     elapsed: Date.now() - start,
   });
-}
-
-export async function readClipboard(targetId, options = {}) {
-  const expression = `
-    (async () => {
-      return await navigator.clipboard.readText();
-    })()
-  `;
-
-  return await evaluate(targetId, expression, options);
-}
-
-export async function writeClipboard(targetId, text, options = {}) {
-  const expression = `
-    (async () => {
-      await navigator.clipboard.writeText(
-        ${JSON.stringify(text)}
-      );
-
-      return true;
-    })()
-  `;
-
-  return await evaluate(targetId, expression, options);
 }

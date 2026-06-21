@@ -1,88 +1,46 @@
 import CDP from "chrome-remote-interface";
-import { DEFAULT_HOST, DEFAULT_PORT } from "../infra/config.js";
-import { ERROR_CODE, createError, isClientError } from "../infra/error.js";
 
-/**
- * clientKey -> client
- */
+const defaultHost = "127.0.0.1";
+const defaultPort = 9222;
+
+// Map<clientKey, Promise<CDP.Client>>
 const clientPromiseMap = new Map();
 
-function getClientKey(targetId, options = {}) {
-  const host = options.host ?? DEFAULT_HOST;
-  const port = options.port ?? DEFAULT_PORT;
+function getClientKey(id, options = {}) {
+  const host = options.host ?? defaultHost;
+  const port = options.port ?? defaultPort;
 
-  return `${host}:${port}:${targetId}`;
+  return `${host}:${port}:${id}`;
 }
 
-// 不通过 CDP.List 判断 target 是否存在，保持 client.js 的纯粹性
-function isTargetNotFoundError(error) {
-  if (!error) return false;
+async function createClient(id, options = {}) {
+  const host = options.host ?? defaultHost;
+  const port = options.port ?? defaultPort;
+  const clientKey = getClientKey(id, options);
 
-  const code = error?.code || error?.error?.code;
-  const message = error?.message || error?.error?.message || String(error);
-  const lower = message.toLowerCase();
+  const client = await CDP({
+    host,
+    port,
+    target: id,
+  });
 
-  if (code === -32000) {
-    return (
-      lower.includes("no target") ||
-      lower.includes("no such target") ||
-      lower.includes("target not found")
-    );
-  }
+  client.on("disconnect", () => {
+    clientPromiseMap.delete(clientKey);
+  });
 
-  return false;
+  return client;
 }
 
-async function createClient(targetId, options = {}) {
-  const host = options.host ?? DEFAULT_HOST;
-  const port = options.port ?? DEFAULT_PORT;
-  const clientKey = getClientKey(targetId, options);
+export async function getClient(id, options = {}) {
+  const clientKey = getClientKey(id, options);
 
-  try {
-    const client = await CDP({
-      target: targetId,
-      host,
-      port,
-    });
-
-    client.on("disconnect", () => {
-      clientPromiseMap.delete(clientKey);
-    });
-
-    return client;
-  } catch (error) {
-    if (isTargetNotFoundError(error)) {
-      throw createError(
-        ERROR_CODE.NOT_FOUND,
-        "target not found: {targetId}",
-        null,
-        { targetId },
-      );
-    }
-
-    if (isClientError(error)) {
-      throw error;
-    }
-
-    throw createError(
-      ERROR_CODE.INTERNAL,
-      error?.message || "cdp client error",
-      { cause: error },
-    );
-  }
-}
-
-/**
- * 获取 client（自动复用）
- */
-export async function getClient(targetId, options = {}) {
-  const clientKey = getClientKey(targetId, options);
   let clientPromise = clientPromiseMap.get(clientKey);
 
   if (!clientPromise) {
-    clientPromise = createClient(targetId, options).catch((error) => {
+    clientPromise = createClient(id, options);
+
+    clientPromise.catch(() => {
       clientPromiseMap.delete(clientKey);
-      throw error;
     });
 
     clientPromiseMap.set(clientKey, clientPromise);
@@ -91,13 +49,14 @@ export async function getClient(targetId, options = {}) {
   return await clientPromise;
 }
 
-/**
- * 关闭 client
- */
-export async function closeClient(targetId, options = {}) {
-  const clientKey = getClientKey(targetId, options);
+export async function closeClient(id, options = {}) {
+  const clientKey = getClientKey(id, options);
+
   const clientPromise = clientPromiseMap.get(clientKey);
-  if (!clientPromise) return;
+  
+  if (!clientPromise) {
+    return;
+  }
 
   try {
     const client = await clientPromise;
@@ -107,14 +66,13 @@ export async function closeClient(targetId, options = {}) {
   }
 }
 
-/**
- * 清理所有 client
- */
 export async function closeAllClients() {
   const promises = [];
 
-  for (const p of clientPromiseMap.values()) {
-    promises.push(p.then((client) => client.close()).catch(() => {}));
+  for (const clientPromise of clientPromiseMap.values()) {
+    promises.push(
+      clientPromise.then((client) => client.close()).catch(() => {}),
+    );
   }
 
   await Promise.all(promises);

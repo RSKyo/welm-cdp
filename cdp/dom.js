@@ -182,3 +182,28 @@ export async function getElementCenter(targetId, selector, options = {}) {
     y: centerY,
   };
 }
+
+
+export async function readClipboard(targetId, options = {}) {
+  const expression = `
+    (async () => {
+      return await navigator.clipboard.readText();
+    })()
+  `;
+
+  return await evaluate(targetId, expression, options);
+}
+
+export async function writeClipboard(targetId, text, options = {}) {
+  const expression = `
+    (async () => {
+      await navigator.clipboard.writeText(
+        ${JSON.stringify(text)}
+      );
+
+      return true;
+    })()
+  `;
+
+  return await evaluate(targetId, expression, options);
+}

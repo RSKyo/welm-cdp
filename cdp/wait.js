@@ -1,5 +1,4 @@
 import { DEFAULT_TIMEOUT } from "../infra/config.js";
-import { ERROR_CODE, createError } from "../infra/error.js";
 import { getClient } from "./client.js";
 import { poll } from "./runtime.js";
 
@@ -33,21 +32,9 @@ function buildElementResolver(selector, options = {}) {
 }
 
 /**
- * 等待 selector 出现。
- *
- * targetId:
- *   CDP Target ID
- *
- * selector:
- *   CSS Selector
- *
- * options:
- *   timeout  最大等待时间(ms)
- *   interval 轮询间隔(ms)
- *   host     CDP Host
- *   port     CDP Port
+ * 等待 selector。
  */
-export function waitAppear(targetId, selector, options = {}) {
+export function waitElement(targetId, selector, options = {}) {
   const expression = `
     (() => {
       const el = ${buildElementResolver(selector, options)};
@@ -59,50 +46,33 @@ export function waitAppear(targetId, selector, options = {}) {
 }
 
 /**
- * 等待 selector 消失。
- *
- * 消失条件：
- *   document.querySelector(selector) === null
- *
- * options:
- *   nth      第几个匹配项，默认 0，-1 表示最后一个
- *   timeout  最大等待时间(ms)
- *   interval 轮询间隔(ms)
- *   host     CDP Host
- *   port     CDP Port
+ * 等待 selector 出现。
  */
-export function waitDisappear(targetId, selector, options = {}) {
-  const expression = `
-    (() => {
-      const el = ${buildElementResolver(selector, options)};
-      return !el;
-    })()
-  `;
+export function waitElementAppear(targetId, selector, options = {}) {
+  return waitElement(targetId, selector, {
+    ...options,
 
-  return poll(targetId, expression, options);
+    matcher(value) {
+      return value === true;
+    },
+  });
+}
+
+/**
+ * 等待 selector 消失。
+ */
+export function waitElementDisappear(targetId, selector, options = {}) {
+  return waitElement(targetId, selector, {
+    ...options,
+
+    matcher(value) {
+      return value === false;
+    },
+  });
 }
 
 /**
  * 等待元素可见。
- *
- * 可见条件：
- *   display !== none
- *   visibility !== hidden
- *   opacity !== 0
- *   width > 0
- *   height > 0
- *
- * targetId:
- *   CDP Target ID
- *
- * selector:
- *   CSS Selector
- *
- * options:
- *   timeout  最大等待时间(ms)
- *   interval 轮询间隔(ms)
- *   host     CDP Host
- *   port     CDP Port
  */
 export function waitVisible(targetId, selector, options = {}) {
   const expression = `
@@ -123,30 +93,17 @@ export function waitVisible(targetId, selector, options = {}) {
     })()
   `;
 
-  return poll(targetId, expression, options);
+  return poll(targetId, expression, {
+    ...options,
+
+    matcher(value) {
+      return value === true;
+    },
+  });
 }
 
 /**
  * 等待元素可编辑。
- *
- * 元素必须：
- *   已可见
- *   未 disabled
- *   未 readonly
- *
- * contenteditable 元素直接视为可编辑。
- *
- * targetId:
- *   CDP Target ID
- *
- * selector:
- *   CSS Selector
- *
- * options:
- *   timeout  最大等待时间(ms)
- *   interval 轮询间隔(ms)
- *   host     CDP Host
- *   port     CDP Port
  */
 export function waitEditable(targetId, selector, options = {}) {
   const expression = `
@@ -183,28 +140,17 @@ export function waitEditable(targetId, selector, options = {}) {
     })()
   `;
 
-  return poll(targetId, expression, options);
+  return poll(targetId, expression, {
+    ...options,
+
+    matcher(value) {
+      return value === true;
+    },
+  });
 }
 
 /**
  * 等待元素可点击。
- *
- * 元素必须：
- *   已可见
- *   pointer-events !== none
- *   未 disabled
- *
- * targetId:
- *   CDP Target ID
- *
- * selector:
- *   CSS Selector
- *
- * options:
- *   timeout  最大等待时间(ms)
- *   interval 轮询间隔(ms)
- *   host     CDP Host
- *   port     CDP Port
  */
 export function waitClickable(targetId, selector, options = {}) {
   const expression = `
@@ -230,60 +176,86 @@ export function waitClickable(targetId, selector, options = {}) {
     })()
   `;
 
+  return poll(targetId, expression, {
+    ...options,
+
+    matcher(value) {
+      return value === true;
+    },
+  });
+}
+
+/**
+ * 等待元素文本。
+ */
+export function waitText(targetId, selector, options = {}) {
+  const expression = `
+    (() => {
+      const el = ${buildElementResolver(selector, options)};
+      if (!el) return '';
+
+      return (el.innerText ?? el.textContent ?? '').trim();
+    })()
+  `;
+
   return poll(targetId, expression, options);
 }
 
 /**
- * 等待元素文本满足条件。
- *
- * mode:
- *   includes
- *   equals
- *   regex
- *
- * targetId:
- *   CDP Target ID
- *
- * selector:
- *   CSS Selector
- *
- * pattern:
- *   匹配内容。
- *   includes 模式下表示文本片段；
- *   equals 模式下表示完整文本；
- *   regex 模式下表示正则表达式字符串。
- *
- * options:
- *   mode     includes (默认)|equals|regex
- *   timeout  最大等待时间(ms)
- *   interval 轮询间隔(ms)
- *   host     CDP Host
- *   port     CDP Port
+ * 等待元素文本包含指定内容。
  */
-export function waitMatch(targetId, selector, pattern, options = {}) {
-  const mode = ["includes", "equals", "regex"].includes(options.mode)
-    ? options.mode
-    : "includes";
+export function waitTextIncludes(
+  targetId,
+  selector,
+  expectedText,
+  options = {},
+) {
+  return waitText(targetId, selector, {
+    ...options,
 
+    matcher(text) {
+      return text.includes(expectedText);
+    },
+  });
+}
+
+/**
+ * 等待元素文本完全匹配。
+ */
+export function waitTextEquals(targetId, selector, expectedText, options = {}) {
+  return waitText(targetId, selector, {
+    ...options,
+
+    matcher(text) {
+      return text === expectedText;
+    },
+  });
+}
+
+/**
+ * 等待元素文本匹配正则表达式。
+ */
+export function waitTextRegex(targetId, selector, pattern, options = {}) {
+  const re = new RegExp(pattern);
+
+  return waitText(targetId, selector, {
+    ...options,
+
+    matcher(text) {
+      return re.test(text);
+    },
+  });
+}
+
+/**
+ * 等待元素数量。
+ */
+export function waitCount(targetId, selector, options = {}) {
   const expression = `
     (() => {
-      const el = ${buildElementResolver(selector, options)};
-      if (!el) return false;
-
-      const text = (el.innerText ?? el.textContent ?? '').trim();
-      const mode = ${q(mode)};
-      const pattern = ${q(pattern)};
-
-      if (mode === 'equals') {
-        return text === pattern ? text : '';
-      }
-
-      if (mode === 'regex') {
-        const re = new RegExp(pattern);
-        return re.test(text) ? text : '';
-      }
-
-      return text.includes(pattern) ? text : '';
+      return document.querySelectorAll(
+        ${q(selector)}
+      ).length;
     })()
   `;
 
@@ -293,16 +265,19 @@ export function waitMatch(targetId, selector, pattern, options = {}) {
 /**
  * 等待元素数量等于指定值。
  */
-export function waitCount(targetId, selector, expectedCount, options = {}) {
-  const expression = `
-    (() => {
-      return document.querySelectorAll(
-        ${q(selector)}
-      ).length === ${expectedCount};
-    })()
-  `;
+export function waitCountEquals(
+  targetId,
+  selector,
+  expectedCount,
+  options = {},
+) {
+  return waitCount(targetId, selector, {
+    ...options,
 
-  return poll(targetId, expression, options);
+    matcher(count) {
+      return count === expectedCount;
+    },
+  });
 }
 
 /**
@@ -314,98 +289,99 @@ export function waitCountGreater(
   expectedCount,
   options = {},
 ) {
-  const expression = `
-    (() => {
-      return document.querySelectorAll(
-        ${q(selector)}
-      ).length > ${expectedCount};
-    })()
-  `;
+  return waitCount(targetId, selector, {
+    ...options,
 
-  return poll(targetId, expression, options);
-}
-
-/**
- * 等待一次 CDP Client Event 触发。
- *
- * eventName:
- *   事件名称
- *
- * options:
- *   timeout 最大等待时间(ms)
- */
-function waitEmitterEvent(emitter, eventName, options = {}) {
-  if (!emitter || typeof emitter.on !== "function") {
-    throw createError(ERROR_CODE.INVALID, "invalid emitter");
-  }
-
-  const timeout = options.timeout ?? DEFAULT_TIMEOUT;
-
-  const remove =
-    typeof emitter.off === "function"
-      ? emitter.off.bind(emitter)
-      : typeof emitter.removeListener === "function"
-        ? emitter.removeListener.bind(emitter)
-        : null;
-
-  if (!remove) {
-    throw createError(ERROR_CODE.INVALID, "invalid emitter");
-  }
-
-  return new Promise((resolve, reject) => {
-    let settled = false;
-
-    const timer = setTimeout(() => {
-      finish(
-        reject,
-        createError(
-          ERROR_CODE.TIMEOUT,
-          "event {eventName} wait timeout",
-          null,
-          {
-            eventName,
-          },
-        ),
-      );
-    }, timeout);
-
-    function finish(done, value) {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      remove(eventName, eventHandler);
-      done(value);
-    }
-
-    function eventHandler(...args) {
-      finish(resolve, args.length <= 1 ? args[0] : args);
-    }
-
-    emitter.on(eventName, eventHandler);
+    matcher(count) {
+      return count > expectedCount;
+    },
   });
 }
 
 /**
- * 等待页面加载完成。
- *
- * 流程：
- *   1. 等待页面离开 about:blank
- *   2. 启用 Page Domain
- *   3. 等待 Page.loadEventFired
- *
- * targetId:
- *   CDP Target ID
- *
- * options:
- *   timeout  最大等待时间(ms)
- *   interval 轮询间隔(ms)
- *   host     CDP Host
- *   port     CDP Port
+ * 等待元素数量大于等于指定值。
  */
-export async function waitPage(targetId, options = {}) {
-  const client = await getClient(targetId, options);
-  await client.Page.enable();
+export function waitCountGreaterEquals(
+  targetId,
+  selector,
+  expectedCount,
+  options = {},
+) {
+  return waitCount(targetId, selector, {
+    ...options,
 
-  await poll(targetId, "location.href !== 'about:blank'", options);
-  await waitEmitterEvent(client, "Page.loadEventFired", options);
+    matcher(count) {
+      return count >= expectedCount;
+    },
+  });
+}
+
+/**
+ * 等待元素数量小于指定值。
+ */
+export function waitCountLess(targetId, selector, expectedCount, options = {}) {
+  return waitCount(targetId, selector, {
+    ...options,
+
+    matcher(count) {
+      return count < expectedCount;
+    },
+  });
+}
+
+/**
+ * 等待元素数量小于等于指定值。
+ */
+export function waitCountLessEquals(
+  targetId,
+  selector,
+  expectedCount,
+  options = {},
+) {
+  return waitCount(targetId, selector, {
+    ...options,
+
+    matcher(count) {
+      return count <= expectedCount;
+    },
+  });
+}
+
+/**
+ * 等待元素数量不等于指定值。
+ */
+export function waitCountNotEquals(
+  targetId,
+  selector,
+  expectedCount,
+  options = {},
+) {
+  return waitCount(targetId, selector, {
+    ...options,
+
+    matcher(count) {
+      return count !== expectedCount;
+    },
+  });
+}
+
+async function waitClientEvent(id, eventName, options = {}) {
+  const timeout = 30000;
+  const client = await getClient(id, options);
+
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      client.off(eventName, onEvent);
+
+      reject(new Error(`event ${eventName} timeout`));
+    }, timeout);
+
+    function onEvent(...args) {
+      clearTimeout(timer);
+
+      resolve(args.length <= 1 ? args[0] : args);
+    }
+
+    client.once(eventName, onEvent);
+  });
 }

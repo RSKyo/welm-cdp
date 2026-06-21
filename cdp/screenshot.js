@@ -1,15 +1,45 @@
+import os from "os";
 import path from "path";
 import fs from "fs/promises";
-
-import { ERROR_CODE, createError } from "../infra/error.js";
 import { getClient } from "./client.js";
-import { SCREENSHOT_DIR } from "../infra/config.js";
+import { copyImage } from "../utils/image.js";
+
+const defaultScreenshotDir = `${process.env.HOME}/.local/share/welm/screenshot`;
+const defaultFileName = "screenshot-{yyyy}{MM}{dd}-{HH}{mm}{ss}-{SSS}.png";
 
 /**
- * 获取布局指标
+ * Validate image file name.
  */
-async function getLayoutMetrics(targetId, options = {}) {
-  const { Page } = await getClient(targetId, options);
+function assertImageFileName(fileName) {
+  const ext = path.extname(fileName).toLowerCase();
+
+  if (ext !== ".png") {
+    throw new Error(`unsupported image file: ${fileName}`);
+  }
+}
+
+/**
+ * Format file name template.
+ */
+function formatFileName(template, date = new Date()) {
+  const pad2 = (v) => String(v).padStart(2, "0");
+  const pad3 = (v) => String(v).padStart(3, "0");
+
+  return template
+    .replaceAll("{yyyy}", String(date.getFullYear()))
+    .replaceAll("{MM}", pad2(date.getMonth() + 1))
+    .replaceAll("{dd}", pad2(date.getDate()))
+    .replaceAll("{HH}", pad2(date.getHours()))
+    .replaceAll("{mm}", pad2(date.getMinutes()))
+    .replaceAll("{ss}", pad2(date.getSeconds()))
+    .replaceAll("{SSS}", pad3(date.getMilliseconds()));
+}
+
+/**
+ * Get page layout metrics.
+ */
+async function getLayoutMetrics(id, options = {}) {
+  const { Page } = await getClient(id, options);
 
   const res = await Page.getLayoutMetrics();
 
@@ -29,74 +59,102 @@ async function getLayoutMetrics(targetId, options = {}) {
 }
 
 /**
- * 截图（viewport）
- *
- * @returns base64 encoded image string
+ * Get full-page screenshot clip region.
  */
-export async function captureScreenshot(targetId, options = {}) {
-  const { Page } = await getClient(targetId, options);
+async function getFullPageClip(id, options = {}) {
+  const metrics = await getLayoutMetrics(id, options);
 
-  const { format = "png", quality, clip } = options;
+  const size = metrics.css.contentSize ?? metrics.layout.contentSize;
+
+  if (!size) {
+    throw new Error("failed to get page content size");
+  }
+
+  return {
+    x: 0,
+    y: 0,
+    width: Math.ceil(size.width),
+    height: Math.ceil(size.height),
+  };
+}
+
+/**
+ * Copy a base64 image to the system clipboard.
+ */
+async function copyImageBase64(base64, options = {}) {
+  const fileName = options.fileName ?? defaultFileName;
+
+  assertImageFileName(fileName);
+
+  const finalFileName = formatFileName(fileName);
+
+  const filePath = path.join(os.tmpdir(), finalFileName);
+
+  try {
+    await fs.writeFile(filePath, Buffer.from(base64, "base64"));
+    await copyImage(filePath);
+  } finally {
+    await fs.rm(filePath, {
+      force: true,
+    });
+  }
+}
+
+/**
+ * Save a base64 image to a file.
+ */
+async function saveImageBase64(base64, options = {}) {
+  const dir = options.dir ?? defaultScreenshotDir;
+  const fileName = options.fileName ?? defaultFileName;
+
+  assertImageFileName(fileName);
+
+  const finalDir = path.resolve(dir);
+  await fs.mkdir(finalDir, {
+    recursive: true,
+  });
+
+  const finalFileName = formatFileName(fileName);
+
+  const filePath = path.join(finalDir, finalFileName);
+
+  await fs.writeFile(filePath, Buffer.from(base64, "base64"));
+
+  return filePath;
+}
+
+/**
+ * Capture a page screenshot.
+ *
+ * By default, captures the entire page.
+ * If clip is provided, captures the specified region.
+ *
+ * Returns:
+ *   Base64-encoded PNG image.
+ */
+export async function captureScreenshot(id, options = {}) {
+  const { Page } = await getClient(id, options);
 
   const res = await Page.captureScreenshot({
-    format,
-    quality,
-    clip,
+    format: "png",
+    clip: options.clip ?? (await getFullPageClip(id, options)),
 
-    // 内部固定策略
     fromSurface: true,
     captureBeyondViewport: true,
     optimizeForSpeed: true,
   });
 
-  return res.data ?? "";
-}
+  const base64 = res.data ?? "";
 
-/**
- * 整页截图
- */
-export async function captureFullPageScreenshot(targetId, options = {}) {
-  const metrics = await getLayoutMetrics(targetId, options);
-
-  const size = metrics.css.contentSize ?? metrics.layout.contentSize;
-
-  if (!size) {
-    throw createError(ERROR_CODE.INTERNAL, "failed to get page content size");
+  // copy to clipboard
+  if (options.copy) {
+    await copyImageBase64(base64, options);
   }
 
-  return captureScreenshot(targetId, {
-    ...options,
-    clip: {
-      x: 0,
-      y: 0,
-      width: Math.ceil(size.width),
-      height: Math.ceil(size.height),
-      scale: 1,
-    },
-  });
-}
+  // save to file
+  if (options.save) {
+    await saveImageBase64(base64, options);
+  }
 
-/**
- * 截图 + 落盘（能力增强）
- */
-export async function saveScreenshot(targetId, options = {}) {
-  const { dir = SCREENSHOT_DIR, fullPage = false, format = "png" } = options;
-
-  const base64 = fullPage
-    ? await captureFullPageScreenshot(targetId, options)
-    : await captureScreenshot(targetId, options);
-
-  const finalDir = path.resolve(dir);
-
-  await fs.mkdir(finalDir, { recursive: true });
-
-  const ext = String(format).trim().replace(".", "").toLowerCase();
-
-  const fileName = `screenshot-${Date.now()}.${ext}`;
-
-  const filePath = path.join(finalDir, fileName);
-
-  await fs.writeFile(filePath, Buffer.from(base64, "base64"));
-
-  return filePath;
+  return base64;
 }

@@ -1,4 +1,5 @@
 import { log } from "../infra/log.js";
+import { assertNonBlank, assertHttpUrl } from "../infra/validate.js";
 import {
   ensureChrome,
   listChromePages,
@@ -9,6 +10,10 @@ import {
   ensureChromePage,
   closeChromePage,
 } from "../cdp/chrome.js";
+
+const CDP_OPTIONS = "--host --port";
+const CHROME_OPTIONS = "--chrome-bin --user-data-dir";
+const PAGE_OPTIONS = "--target-type";
 
 /**
  * Chrome CLI 命令注册表。
@@ -27,169 +32,181 @@ export const CHROME_COMMANDS = {
     handler: cmd_ensureChrome,
     usage: "chrome ready [options]",
     description: "Ensure Chrome and CDP service ready",
-    options: "--host --port --chromeBin --userDataDir --timeout --interval",
+    options: `${CDP_OPTIONS} ${CHROME_OPTIONS}`,
   },
 
   list: {
     handler: cmd_listChromePages,
     usage: "chrome list [options]",
-    description: "List all Chrome pages",
-    options: "--type --host --port",
+    description: "List Chrome pages",
+    options: `${CDP_OPTIONS} ${PAGE_OPTIONS}`,
   },
 
   get: {
     handler: cmd_getChromePage,
-    usage: "chrome get <targetId> [options]",
-    description: "Get a Chrome page by targetId",
-    options: "--type --host --port",
+    usage: "chrome get <id> [options]",
+    description: "Get Chrome page",
+    options: `${CDP_OPTIONS} ${PAGE_OPTIONS}`,
   },
 
   find: {
     handler: cmd_findChromePage,
     usage: "chrome find <keyword> [options]",
-    description: "Find a Chrome page by keyword",
-    options: "--type --host --port",
+    description: "Find Chrome page",
+    options: `${CDP_OPTIONS} ${PAGE_OPTIONS}`,
   },
 
   activate: {
     handler: cmd_activateChromePage,
-    usage: "chrome activate <targetId> [options]",
-    description: "Activate a Chrome page",
-    options: "--host --port",
+    usage: "chrome activate <id> [options]",
+    description: "Activate Chrome page",
+    options: `${CDP_OPTIONS} ${PAGE_OPTIONS}`,
   },
 
   open: {
     handler: cmd_openChromePage,
     usage: "chrome open <url> [options]",
-    description: "Open a new Chrome page",
-    options: "--host --port --timeout --interval",
+    description: "Open Chrome page",
+    options: CDP_OPTIONS,
   },
 
   ensure: {
     handler: cmd_ensureChromePage,
     usage: "chrome ensure <url> [options]",
-    description: "Find or open Chrome page",
-    options: "--keyword --activate --host --port --timeout --interval",
+    description: "Ensure Chrome page",
+    options: `--keyword ${CDP_OPTIONS} ${PAGE_OPTIONS}`,
   },
 
   close: {
     handler: cmd_closeChromePage,
-    usage: "chrome close <targetId> [options]",
-    description: "Close a Chrome page",
-    options: "--host --port",
+    usage: "chrome close <id> [options]",
+    description: "Close Chrome page",
+    options: `${CDP_OPTIONS} ${PAGE_OPTIONS}`,
   },
 };
 
-// CLI 命令实现
+/**
+ * ----------------------------------------------------------------------------
+ * CLI 命令实现
+ * ----------------------------------------------------------------------------
+ */
 
 /**
  * 确保 Chrome 与 CDP 服务已就绪。
  */
-export async function cmd_ensureChrome(ctx) {
-  const { options } = ctx;
-  const debugInfo = await ensureChrome(options);
+export async function cmd_ensureChrome({ options } = {}) {
+  const launchInfo = await ensureChrome(options);
 
-  log.info(`CDP endpoint: http://${debugInfo.host}:${debugInfo.port}`, options);
-  log.info(`Using Chrome executable: ${debugInfo.chromeBin}`, options);
-  log.info(`Using Chrome user data dir: ${debugInfo.userDataDir}`, options);
+  if (launchInfo.launched) {
+    log.info(
+      `CDP endpoint: http://${launchInfo.host}:${launchInfo.port}`,
+      options,
+    );
+    log.info(`Using Chrome executable: ${launchInfo.chromeBin}`, options);
+    log.info(`Using Chrome user data dir: ${launchInfo.userDataDir}`, options);
+  }
 
-  return debugInfo;
+  return launchInfo;
 }
 
 /**
  * 获取所有 Chrome 网页。
  */
-export async function cmd_listChromePages(ctx) {
-  const { options } = ctx;
-  const pages = await listChromePages(options);
+export async function cmd_listChromePages({ options } = {}) {
+  const targets = await listChromePages(options);
 
-  const total = pages.length;
-  pages.forEach((page, index) => {
-    log.info(`(${index + 1}/${total}) ${page.id} ${page.title}`, options);
+  const total = targets.length;
+  targets.forEach((target, index) => {
+    log.info(`(${index + 1}/${total}) ${target.id} ${target.title}`, options);
   });
 
-  return pages;
+  return targets;
 }
 
 /**
  * 获取指定 Chrome 网页。
  */
-export async function cmd_getChromePage(ctx) {
-  const { argv, options } = ctx;
-  const [targetId] = argv;
+export async function cmd_getChromePage({ argv, options } = {}) {
+  const [id] = argv;
+  assertNonBlank(id, "id");
 
-  const page = await getChromePage(targetId, options);
-  log.info(`${page.id} ${page.title}`, options);
+  const target = await getChromePage(id, options);
 
-  return page;
+  log.info(`${target.id} ${target.title}`, options);
+
+  return target;
 }
 
 /**
  * 根据关键字查找 Chrome 网页。
  */
-export async function cmd_findChromePage(ctx) {
-  const { argv, options } = ctx;
+export async function cmd_findChromePage({ argv, options } = {}) {
   const [keyword] = argv;
+  assertNonBlank(keyword, "keyword");
 
-  const page = await findChromePage(keyword, options);
+  const target = await findChromePage(keyword, options);
 
-  if (page) {
-    log.info(`${page.id} ${page.title}`, options);
+  if (target) {
+    log.info(`${target.id} ${target.title}`, options);
   } else {
     log.warn(`No matching Chrome page found for keyword: ${keyword}`, options);
   }
 
-  return page;
+  return target;
 }
 
 /**
  * 激活 Chrome 网页。
  */
-export async function cmd_activateChromePage(ctx) {
-  const { argv, options } = ctx;
-  const [targetId] = argv;
+export async function cmd_activateChromePage({ argv, options } = {}) {
+  const [id] = argv;
+  assertNonBlank(id, "id");
 
-  const page = await activateChromePage(targetId, options);
-  log.info(`${page.id} ${page.title}`, options);
+  const target = await activateChromePage(id, options);
 
-  return page;
+  log.info(`${target.id} ${target.title}`, options);
+
+  return target;
 }
 
 /**
  * 新建 Chrome 网页。
  */
-export async function cmd_openChromePage(ctx) {
-  const { argv, options } = ctx;
+export async function cmd_openChromePage({ argv, options } = {}) {
   const [url] = argv;
+  assertHttpUrl(url, "url");
 
-  const page = await openChromePage(url, options);
-  log.info(`${page.id} ${page.title}`, options);
+  const target = await openChromePage(url, options);
 
-  return page;
+  log.info(`${target.id} ${target.title}`, options);
+
+  return target;
 }
 
 /**
  * 查找或打开 Chrome 网页。
  */
-export async function cmd_ensureChromePage(ctx) {
-  const { argv, options } = ctx;
+export async function cmd_ensureChromePage({ argv, options } = {}) {
   const [url] = argv;
+  assertHttpUrl(url, "url");
 
-  const page = await ensureChromePage(url, options);
-  log.info(`${page.id} ${page.title}`, options);
+  const target = await ensureChromePage(url, options);
 
-  return page;
+  log.info(`${target.id} ${target.title}`, options);
+
+  return target;
 }
 
 /**
  * 关闭 Chrome 网页。
  */
-export async function cmd_closeChromePage(ctx) {
-  const { argv, options } = ctx;
-  const [targetId] = argv;
+export async function cmd_closeChromePage({ argv, options } = {}) {
+  const [id] = argv;
+  assertNonBlank(id, "id");
 
-  const page = await closeChromePage(targetId, options);
-  log.info(`${page.id} ${page.title}`, options);
+  const target = await closeChromePage(id, options);
 
-  return page;
+  log.info(`${target.id} ${target.title}`, options);
+
+  return target;
 }

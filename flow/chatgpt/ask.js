@@ -1,7 +1,6 @@
 import { type, click } from "../../cdp/input.js";
-import { getElementsCount } from "../../cdp/dom.js";
-import { waitAppear, waitDisappear, waitCountGreater } from "../../cdp/wait.js";
-import { readClipboard } from "../../cdp/runtime.js";
+import { readClipboard } from "../../cdp/dom.js";
+import { waitElementAppear, waitElementDisappear } from "../../cdp/wait.js";
 import { ensureChrome, ensureChromePage } from "../../cdp/chrome.js";
 
 import { log } from "../../infra/log.js";
@@ -31,9 +30,9 @@ export async function ask(prompt, options = {}) {
 
   // 等待回复
   log.progress("Waiting for response...");
-  await waitAppear(id, STOP_BUTTON_SELECTOR, options);
+  await waitElementAppear(id, STOP_BUTTON_SELECTOR, options);
   await sleep(3000);
-  await waitDisappear(id, STOP_BUTTON_SELECTOR, options);
+  await waitElementDisappear(id, STOP_BUTTON_SELECTOR, options);
 
   // 复制回复
   log.progress("Copying response...");
