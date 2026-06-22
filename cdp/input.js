@@ -5,6 +5,8 @@ import { waitEditable, waitClickable } from "./wait.js";
 import { getElementCenter } from "./dom.js";
 import { log } from "../infra/log.js";
 
+
+
 function q(value) {
   return JSON.stringify(value);
 }
@@ -52,6 +54,12 @@ async function getInput(targetId, options = {}) {
  * clickCount: 表示当前这是连续点击中的第几次（第一次点击为1，第二次点击为2，依此类推），不是执行几次点击
  */
 
+export const mouseState = {
+  x: 0,
+  y: 0,
+  lastUpdate: 0,
+};
+
 /**
  * 移动鼠标到指定 viewport 坐标。
  *
@@ -67,6 +75,10 @@ export async function mouseMoveTo(targetId, x, y, options = {}) {
     buttons: options.buttons ?? 0,
     modifiers: options.modifiers ?? 0,
   });
+
+  mouseState.x = x;
+  mouseState.y = y;
+  mouseState.lastUpdate = Date.now();
 
   return true;
 }
@@ -104,61 +116,6 @@ async function mouseUpAt(targetId, x, y, options = {}) {
     buttons: options.buttons ?? 0,
     modifiers: options.modifiers ?? 0,
     clickCount: options.clickCount ?? 1,
-  });
-
-  return true;
-}
-
-/**
- * 坐标点击。
- */
-async function clickAt(targetId, x, y, options = {}) {
-  await mouseMoveTo(targetId, x, y, {
-    ...options,
-    buttons: 0,
-  });
-
-  await mouseDownAt(targetId, x, y, {
-    ...options,
-    clickCount: 1,
-  });
-
-  await mouseUpAt(targetId, x, y, {
-    ...options,
-    clickCount: 1,
-  });
-
-  return true;
-}
-
-/**
- * 坐标双击。
- */
-async function doubleClickAt(targetId, x, y, options = {}) {
-  await mouseMoveTo(targetId, x, y, {
-    ...options,
-    button: "none",
-    buttons: 0,
-  });
-
-  await mouseDownAt(targetId, x, y, {
-    ...options,
-    clickCount: 1,
-  });
-
-  await mouseUpAt(targetId, x, y, {
-    ...options,
-    clickCount: 1,
-  });
-
-  await mouseDownAt(targetId, x, y, {
-    ...options,
-    clickCount: 2,
-  });
-
-  await mouseUpAt(targetId, x, y, {
-    ...options,
-    clickCount: 2,
   });
 
   return true;
