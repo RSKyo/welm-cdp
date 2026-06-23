@@ -1,11 +1,11 @@
 import { type, click } from "../../cdp/input.js";
-import { readClipboard } from "../../cdp/dom.js";
 import { waitElementAppear, waitElementDisappear } from "../../cdp/wait.js";
 import { ensureChrome, ensureChromePage } from "../../cdp/chrome.js";
 
 import { log } from "../../infra/log.js";
 import { sleep } from "../../infra/utils.js";
 import { CHATGPT_URL } from "../../infra/config.js";
+import { readClipboard } from "../../utils/clipboard.js"
 
 import {
   TEXTAREA_SELECTOR,
