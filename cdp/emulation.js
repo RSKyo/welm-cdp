@@ -1,17 +1,52 @@
 import { getClient } from "./client.js";
 
 /**
+ * ----------------------------------------------------------------------------
+ * Base Utils
+ * ----------------------------------------------------------------------------
+ */
+
+function toPositiveInteger(value, name) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number) || !Number.isInteger(number) || number <= 0) {
+    throw new Error(`${name} must be a positive integer, got: ${value}`);
+  }
+
+  return number;
+}
+
+function toNonNegativeInteger(value, name) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number) || !Number.isInteger(number) || number < 0) {
+    throw new Error(`${name} must be a non-negative integer, got: ${value}`);
+  }
+
+  return number;
+}
+
+function toPositiveNumber(value, name) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number) || number <= 0) {
+    throw new Error(`${name} must be a positive number, got: ${value}`);
+  }
+
+  return number;
+}
+
+/**
  * 获取 Emulation 域客户端。
  */
 async function getEmulation(targetId, options = {}) {
-
   const { Emulation } = await getClient(targetId, options);
 
   return Emulation;
 }
 
 /**
- * 设置设备指标。
+ * 应用设备指标。
  */
 async function setDeviceMetrics(targetId, metrics, options = {}) {
   const Emulation = await getEmulation(targetId, options);
@@ -22,32 +57,32 @@ async function setDeviceMetrics(targetId, metrics, options = {}) {
 }
 
 /**
+ * ----------------------------------------------------------------------------
+ * Viewport
+ * ----------------------------------------------------------------------------
+ */
+
+/**
  * 设置视口。
  */
-export async function setViewport(
-  targetId,
-  width,
-  height,
-  options = {},
-) {
-  width = Number(width);
-  height = Number(height);
+export async function setViewport(targetId, width, height, options = {}) {
+  width = toPositiveInteger(width, "width");
+  height = toPositiveInteger(height, "height");
 
-  if (!Number.isFinite(width) || width <= 0) {
-    throw new Error("invalid width");
-  }
+  const deviceScaleFactor = toPositiveNumber(
+    options.deviceScaleFactor ?? 1,
+    "deviceScaleFactor",
+  );
 
-  if (!Number.isFinite(height) || height <= 0) {
-    throw new Error("invalid height");
-  }
+  const mobile = options.mobile;
 
   return setDeviceMetrics(
     targetId,
     {
       width,
       height,
-      deviceScaleFactor: options.deviceScaleFactor ?? 1,
-      mobile: Boolean(options.mobile),
+      deviceScaleFactor,
+      mobile,
     },
     options,
   );
@@ -78,6 +113,24 @@ export async function setMobileViewport(
   height = 844,
   options = {},
 ) {
+  width = toPositiveInteger(width, "width");
+  height = toPositiveInteger(height, "height");
+
+  const deviceScaleFactor = toPositiveNumber(
+    options.deviceScaleFactor ?? 3,
+    "deviceScaleFactor",
+  );
+
+  const screenWidth = toPositiveInteger(
+    options.screenWidth ?? width,
+    "screenWidth",
+  );
+
+  const screenHeight = toPositiveInteger(
+    options.screenHeight ?? height,
+    "screenHeight",
+  );
+
   const orientation =
     height >= width
       ? { type: "portraitPrimary", angle: 0 }
@@ -86,12 +139,12 @@ export async function setMobileViewport(
   return setDeviceMetrics(
     targetId,
     {
-      width: Number(width),
-      height: Number(height),
+      width,
+      height,
       mobile: true,
-      deviceScaleFactor: options.deviceScaleFactor ?? 3,
-      screenWidth: options.screenWidth ?? Number(width),
-      screenHeight: options.screenHeight ?? Number(height),
+      deviceScaleFactor,
+      screenWidth,
+      screenHeight,
       screenOrientation: options.screenOrientation ?? orientation,
     },
     options,
@@ -99,13 +152,18 @@ export async function setMobileViewport(
 }
 
 /**
+ * ----------------------------------------------------------------------------
+ * User Agent
+ * ----------------------------------------------------------------------------
+ */
+
+/**
  * 设置 User-Agent。
  */
-export async function setUserAgent(
-  targetId,
-  userAgent,
-  options = {},
-) {
+export async function setUserAgent(targetId, userAgent, options = {}) {
+  if (typeof userAgent !== "string" || userAgent.trim() === "") {
+    throw new Error(`userAgent must be a non-empty string`);
+  }
 
   const Emulation = await getEmulation(targetId, options);
 
@@ -131,6 +189,12 @@ export async function setUserAgent(
 }
 
 /**
+ * ----------------------------------------------------------------------------
+ * Touch
+ * ----------------------------------------------------------------------------
+ */
+
+/**
  * 设置触摸模拟。
  */
 async function setTouchEmulation(
@@ -139,10 +203,12 @@ async function setTouchEmulation(
   maxTouchPoints = 1,
   options = {},
 ) {
+  maxTouchPoints = toNonNegativeInteger(maxTouchPoints, "maxTouchPoints");
+
   const Emulation = await getEmulation(targetId, options);
 
   await Emulation.setTouchEmulationEnabled({
-    enabled: Boolean(enabled),
+    enabled,
     maxTouchPoints,
   });
 
@@ -150,25 +216,28 @@ async function setTouchEmulation(
 }
 
 /**
+ * ----------------------------------------------------------------------------
+ * Presets
+ * ----------------------------------------------------------------------------
+ */
+
+/**
  * 一键切到桌面端环境。
  */
 export async function emulateDesktop(targetId, options = {}) {
-  const {
-    width = 1440,
-    height = 900,
-    deviceScaleFactor = 1,
-    userAgent,
-  } = options;
+  const width = options.width ?? 1440;
+  const height = options.height ?? 900;
+  const deviceScaleFactor = options.deviceScaleFactor ?? 1;
 
   await setDesktopViewport(targetId, width, height, {
     ...options,
     deviceScaleFactor,
   });
 
-  await setTouchEmulation(targetId, false, 1, options);
+  await setTouchEmulation(targetId, false, 0, options);
 
-  if (userAgent) {
-    await setUserAgent(targetId, userAgent, {
+  if (options.userAgent) {
+    await setUserAgent(targetId, options.userAgent, {
       ...options,
       platform: options.platform ?? "MacIntel",
     });
@@ -181,13 +250,10 @@ export async function emulateDesktop(targetId, options = {}) {
  * 一键切到移动端环境。
  */
 export async function emulateMobile(targetId, options = {}) {
-  const {
-    width = 390,
-    height = 844,
-    deviceScaleFactor = 3,
-    maxTouchPoints = 5,
-    userAgent,
-  } = options;
+  const width = options.width ?? 390;
+  const height = options.height ?? 844;
+  const deviceScaleFactor = options.deviceScaleFactor ?? 3;
+  const maxTouchPoints = options.maxTouchPoints ?? 5;
 
   await setMobileViewport(targetId, width, height, {
     ...options,
@@ -196,8 +262,8 @@ export async function emulateMobile(targetId, options = {}) {
 
   await setTouchEmulation(targetId, true, maxTouchPoints, options);
 
-  if (userAgent) {
-    await setUserAgent(targetId, userAgent, {
+  if (options.userAgent) {
+    await setUserAgent(targetId, options.userAgent, {
       ...options,
       platform: options.platform ?? "iPhone",
     });

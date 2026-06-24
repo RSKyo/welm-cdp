@@ -14,6 +14,10 @@ import {
   COPY_BUTTON_SELECTOR,
 } from "./selector.js";
 
+export function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 export async function ask(prompt, options = {}) {
   await ensureChrome(options);
   const { id } = await ensureChromePage(CHATGPT_URL, options);

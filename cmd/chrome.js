@@ -113,14 +113,14 @@ export async function cmd_ensureChrome({ options } = {}) {
  * 获取所有 Chrome 网页。
  */
 export async function cmd_listChromePages({ options } = {}) {
-  const targets = await listChromePages(options);
+  const pages = await listChromePages(options);
 
-  const total = targets.length;
-  targets.forEach((target, index) => {
-    log.info(`(${index + 1}/${total}) ${target.id} ${target.title}`, options);
+  const total = pages.length;
+  pages.forEach((page, index) => {
+    log.info(`(${index + 1}/${total}) ${page.id} ${page.title}`, options);
   });
 
-  return targets;
+  return pages;
 }
 
 /**
@@ -130,11 +130,11 @@ export async function cmd_getChromePage({ argv, options } = {}) {
   const [id] = argv;
   assertNonBlank(id, "id");
 
-  const target = await getChromePage(id, options);
+  const page = await getChromePage(id, options);
 
-  log.info(`${target.id} ${target.title}`, options);
+  log.info(`${page.id} ${page.title}`, options);
 
-  return target;
+  return page;
 }
 
 /**
@@ -144,15 +144,15 @@ export async function cmd_findChromePage({ argv, options } = {}) {
   const [keyword] = argv;
   assertNonBlank(keyword, "keyword");
 
-  const target = await findChromePage(keyword, options);
+  const page = await findChromePage(keyword, options);
 
-  if (target) {
-    log.info(`${target.id} ${target.title}`, options);
+  if (page) {
+    log.info(`${page.id} ${page.title}`, options);
   } else {
     log.warn(`No matching Chrome page found for keyword: ${keyword}`, options);
   }
 
-  return target;
+  return page;
 }
 
 /**
@@ -162,11 +162,11 @@ export async function cmd_activateChromePage({ argv, options } = {}) {
   const [id] = argv;
   assertNonBlank(id, "id");
 
-  const target = await activateChromePage(id, options);
+  const page = await activateChromePage(id, options);
 
-  log.info(`${target.id} ${target.title}`, options);
+  log.info(`${page.id} ${page.title}`, options);
 
-  return target;
+  return page;
 }
 
 /**
@@ -176,11 +176,11 @@ export async function cmd_openChromePage({ argv, options } = {}) {
   const [url] = argv;
   assertHttpUrl(url, "url");
 
-  const target = await openChromePage(url, options);
+  const page = await openChromePage(url, options);
 
-  log.info(`${target.id} ${target.title}`, options);
+  log.info(`${page.id} ${page.title}`, options);
 
-  return target;
+  return page;
 }
 
 /**
@@ -190,11 +190,11 @@ export async function cmd_ensureChromePage({ argv, options } = {}) {
   const [url] = argv;
   assertHttpUrl(url, "url");
 
-  const target = await ensureChromePage(url, options);
+  const page = await ensureChromePage(url, options);
 
-  log.info(`${target.id} ${target.title}`, options);
+  log.info(`${page.id} ${page.title}`, options);
 
-  return target;
+  return page;
 }
 
 /**
@@ -204,9 +204,9 @@ export async function cmd_closeChromePage({ argv, options } = {}) {
   const [id] = argv;
   assertNonBlank(id, "id");
 
-  const target = await closeChromePage(id, options);
+  const page = await closeChromePage(id, options);
 
-  log.info(`${target.id} ${target.title}`, options);
+  log.info(`${page.id} ${page.title}`, options);
 
-  return target;
+  return page;
 }

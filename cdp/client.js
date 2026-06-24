@@ -6,22 +6,22 @@ const defaultPort = 9222;
 // Map<clientKey, Promise<CDP.Client>>
 const clientPromiseMap = new Map();
 
-function getClientKey(id, options = {}) {
+function getClientKey(targetId, options = {}) {
   const host = options.host ?? defaultHost;
   const port = options.port ?? defaultPort;
 
-  return `${host}:${port}:${id}`;
+  return `${host}:${port}:${targetId}`;
 }
 
-async function createClient(id, options = {}) {
+async function createClient(targetId, options = {}) {
   const host = options.host ?? defaultHost;
   const port = options.port ?? defaultPort;
-  const clientKey = getClientKey(id, options);
+  const clientKey = getClientKey(targetId, options);
 
   const client = await CDP({
     host,
     port,
-    target: id,
+    target: targetId,
   });
 
   client.on("disconnect", () => {
@@ -31,13 +31,13 @@ async function createClient(id, options = {}) {
   return client;
 }
 
-export async function getClient(id, options = {}) {
-  const clientKey = getClientKey(id, options);
+export async function getClient(targetId, options = {}) {
+  const clientKey = getClientKey(targetId, options);
 
   let clientPromise = clientPromiseMap.get(clientKey);
 
   if (!clientPromise) {
-    clientPromise = createClient(id, options);
+    clientPromise = createClient(targetId, options);
 
     clientPromise.catch(() => {
       clientPromiseMap.delete(clientKey);
@@ -49,11 +49,11 @@ export async function getClient(id, options = {}) {
   return await clientPromise;
 }
 
-export async function closeClient(id, options = {}) {
-  const clientKey = getClientKey(id, options);
+export async function closeClient(targetId, options = {}) {
+  const clientKey = getClientKey(targetId, options);
 
   const clientPromise = clientPromiseMap.get(clientKey);
-  
+
   if (!clientPromise) {
     return;
   }
@@ -67,14 +67,13 @@ export async function closeClient(id, options = {}) {
 }
 
 export async function closeAllClients() {
-  const promises = [];
+  const clientPromises = [...clientPromiseMap.values()];
 
-  for (const clientPromise of clientPromiseMap.values()) {
-    promises.push(
-      clientPromise.then((client) => client.close()).catch(() => {}),
-    );
-  }
-
-  await Promise.all(promises);
   clientPromiseMap.clear();
+
+  await Promise.all(
+    clientPromises.map((clientPromise) =>
+      clientPromise.then((client) => client.close()).catch(() => {}),
+    ),
+  );
 }

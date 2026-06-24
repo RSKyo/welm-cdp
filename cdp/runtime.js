@@ -1,9 +1,21 @@
-// infra
-import { DEFAULT_TIMEOUT, DEFAULT_INTERVAL } from "../infra/config.js";
-import { ERROR_CODE, createError } from "../infra/error.js";
-import { sleep } from "../infra/utils.js";
-// cdp
 import { getClient } from "./client.js";
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+ function assertPositiveInteger(value, fieldName = "value") {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value) ||
+    !Number.isInteger(value) ||
+    value <= 0
+  ) {
+    throw new Error(`${fieldName} must be a positive integer, got: ${value}`);
+  }
+
+  return value;
+}
 
 /**
  * 在页面上下文中执行 JavaScript 表达式。
@@ -37,13 +49,15 @@ export async function evaluate(targetId, expression, options = {}) {
       exceptionDetails.text ||
       "expression threw an exception";
 
-    throw createError(ERROR_CODE.EVALUATE_ERROR, message, {
-      expression,
-    });
+    throw new Error(message);
   }
 
   if (!result) {
-    throw createError(ERROR_CODE.EVALUATE_ERROR, "missing evaluation result");
+    throw new Error("missing evaluation result");
+  }
+
+  if (result.type === "undefined") {
+    return undefined;
   }
 
   if ("value" in result) {
@@ -98,10 +112,14 @@ function defaultMatcher(value) {
  * 默认 matchTimes 为 1。
  */
 export async function poll(targetId, expression, options = {}) {
-  const timeout = options.timeout ?? DEFAULT_TIMEOUT;
-  const interval = options.interval ?? DEFAULT_INTERVAL;
+  const timeout = options.timeout ?? 30000;
+  const interval = options.interval ?? 500;
   const matcher = options.matcher ?? defaultMatcher;
   const matchTimes = options.matchTimes ?? 1;
+
+  assertPositiveInteger(timeout, "timeout");
+  assertPositiveInteger(interval, "interval");
+  assertPositiveInteger(matchTimes, "matchTimes");
 
   const start = Date.now();
 
@@ -127,12 +145,13 @@ export async function poll(targetId, expression, options = {}) {
       matchedTimes = 0;
     }
 
-    await sleep(interval);
+    const remaining = timeout - (Date.now() - start);
+    if (remaining <= 0) break;
+
+    await sleep(Math.min(interval, remaining));
   }
 
-  throw createError(ERROR_CODE.TIMEOUT, "poll condition not matched", {
-    timeout,
-    interval,
-    elapsed: Date.now() - start,
-  });
+  throw new Error(
+    `poll condition not matched: timeout=${timeout}ms, interval=${interval}ms, elapsed=${Date.now() - start}ms`,
+  );
 }
