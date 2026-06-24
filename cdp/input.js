@@ -309,94 +309,179 @@ export async function doubleClick(targetId, selector, options = {}) {
  * ----------------------------------------------------------------------------
  */
 
+async function editCommands(
+  targetId,
+  commands,
+  options = {},
+) {
+  const { Input } = await getClient(targetId, options);
+
+  await Input.dispatchKeyEvent({
+    type: "rawKeyDown",
+    commands,
+  });
+
+  return true;
+}
+
+
 const KEY_MAP = {
   Enter: {
     code: "Enter",
     windowsVirtualKeyCode: 13,
-    nativeVirtualKeyCode: 13,
+    nativeVirtualKeyCode: 36,
   },
+
   Tab: {
     code: "Tab",
     windowsVirtualKeyCode: 9,
-    nativeVirtualKeyCode: 9,
+    nativeVirtualKeyCode: 48,
   },
+
   Escape: {
     code: "Escape",
     windowsVirtualKeyCode: 27,
-    nativeVirtualKeyCode: 27,
+    nativeVirtualKeyCode: 53,
   },
+
   Backspace: {
     code: "Backspace",
     windowsVirtualKeyCode: 8,
-    nativeVirtualKeyCode: 8,
+    nativeVirtualKeyCode: 51,
   },
+
   Delete: {
     code: "Delete",
     windowsVirtualKeyCode: 46,
-    nativeVirtualKeyCode: 46,
+    nativeVirtualKeyCode: 117,
   },
+
   ArrowUp: {
     code: "ArrowUp",
     windowsVirtualKeyCode: 38,
-    nativeVirtualKeyCode: 38,
+    nativeVirtualKeyCode: 126,
   },
+
   ArrowDown: {
     code: "ArrowDown",
     windowsVirtualKeyCode: 40,
-    nativeVirtualKeyCode: 40,
+    nativeVirtualKeyCode: 125,
   },
+
   ArrowLeft: {
     code: "ArrowLeft",
     windowsVirtualKeyCode: 37,
-    nativeVirtualKeyCode: 37,
+    nativeVirtualKeyCode: 123,
   },
+
   ArrowRight: {
     code: "ArrowRight",
     windowsVirtualKeyCode: 39,
-    nativeVirtualKeyCode: 39,
+    nativeVirtualKeyCode: 124,
   },
+
   Home: {
     code: "Home",
     windowsVirtualKeyCode: 36,
-    nativeVirtualKeyCode: 36,
+    nativeVirtualKeyCode: 115,
   },
+
   End: {
     code: "End",
     windowsVirtualKeyCode: 35,
-    nativeVirtualKeyCode: 35,
+    nativeVirtualKeyCode: 119,
   },
+
   PageUp: {
     code: "PageUp",
     windowsVirtualKeyCode: 33,
-    nativeVirtualKeyCode: 33,
+    nativeVirtualKeyCode: 116,
   },
+
   PageDown: {
     code: "PageDown",
     windowsVirtualKeyCode: 34,
-    nativeVirtualKeyCode: 34,
+    nativeVirtualKeyCode: 121,
   },
+
   Meta: {
+    key: "Meta",
     code: "MetaLeft",
     windowsVirtualKeyCode: 91,
-    nativeVirtualKeyCode: 91,
+    nativeVirtualKeyCode: 55,
+    location: 1,
+  },
+
+  Command: {
+    key: "Meta",
+    code: "MetaLeft",
+    windowsVirtualKeyCode: 91,
+    nativeVirtualKeyCode: 55,
+    location: 1,
+  },
+
+  Cmd: {
+    key: "Meta",
+    code: "MetaLeft",
+    windowsVirtualKeyCode: 91,
+    nativeVirtualKeyCode: 55,
+    location: 1,
+  },
+
+  Control: {
+    key: "Control",
+    code: "ControlLeft",
+    windowsVirtualKeyCode: 17,
+    nativeVirtualKeyCode: 59,
+    location: 1,
+  },
+
+  Ctrl: {
+    key: "Control",
+    code: "ControlLeft",
+    windowsVirtualKeyCode: 17,
+    nativeVirtualKeyCode: 59,
+    location: 1,
+  },
+
+  Alt: {
+    key: "Alt",
+    code: "AltLeft",
+    windowsVirtualKeyCode: 18,
+    nativeVirtualKeyCode: 58,
+    location: 1,
+  },
+
+  Shift: {
+    key: "Shift",
+    code: "ShiftLeft",
+    windowsVirtualKeyCode: 16,
+    nativeVirtualKeyCode: 56,
+    location: 1,
+  },
+
+  v: {
+    code: "KeyV",
+    windowsVirtualKeyCode: 86,
+    nativeVirtualKeyCode: 9,
   },
 };
 
-for (const char of "abcdefghijklmnopqrstuvwxyz") {
-  KEY_MAP[char] = {
-    code: `Key${char.toUpperCase()}`,
-    windowsVirtualKeyCode: char.toUpperCase().charCodeAt(0),
-    nativeVirtualKeyCode: char.toUpperCase().charCodeAt(0),
-  };
-}
+// for (const char of "abcdefghijklmnopqrstuvwxyz") {
+//   KEY_MAP[char] = {
+//     code: `Key${char.toUpperCase()}`,
+//     windowsVirtualKeyCode: char.toUpperCase().charCodeAt(0),
+//     nativeVirtualKeyCode: char.toUpperCase().charCodeAt(0),
+//   };
+// }
 
-for (const char of "0123456789") {
-  KEY_MAP[char] = {
-    code: `Digit${char}`,
-    windowsVirtualKeyCode: char.charCodeAt(0),
-    nativeVirtualKeyCode: char.charCodeAt(0),
-  };
-}
+// for (const char of "0123456789") {
+//   KEY_MAP[char] = {
+//     code: `Digit${char}`,
+//     windowsVirtualKeyCode: char.charCodeAt(0),
+//     nativeVirtualKeyCode: char.charCodeAt(0),
+//   };
+// }
 
 function buildKeyEvent(key, options = {}) {
   const preset = KEY_MAP[key] ?? {};
@@ -415,12 +500,15 @@ function buildKeyEvent(key, options = {}) {
 async function keyDown(targetId, key, options = {}) {
   const { Input } = await getClient(targetId, options);
 
-  await Input.dispatchKeyEvent({
+  const test = {
     type: "keyDown",
     ...buildKeyEvent(key, options),
-    text: options.text,
+    text: options.key,
     unmodifiedText: options.unmodifiedText,
-  });
+  };
+  console.log(JSON.stringify(test));
+
+  await Input.dispatchKeyEvent(test);
 
   return true;
 }
@@ -442,9 +530,17 @@ async function keyUp(targetId, key, options = {}) {
  * ----------------------------------------------------------------------------
  */
 
-async function pressKey(targetId, key, options = {}) {
+export async function pressKey(targetId, key, options = {}) {
+  const modifiers = options.modifiers ?? 0;
+  const isPrintable = key.length === 1 && modifiers === 0;
+
   await sleep(random(50, 130));
-  await keyDown(targetId, key, options);
+
+  await keyDown(targetId, key, {
+    ...options,
+    text: isPrintable ? key : undefined,
+    unmodifiedText: isPrintable ? key : undefined,
+  });
 
   await sleep(random(10, 50));
   await keyUp(targetId, key, options);
@@ -452,17 +548,31 @@ async function pressKey(targetId, key, options = {}) {
   return true;
 }
 
-async function pressShortcut(targetId, modifier, key, options = {}) {
-  await keyDown(targetId, modifier, options);
+function getModifierMask(modifier) {
+  switch (modifier.toLowerCase()) {
+    case "alt":
+      return 1;
 
-  await sleep(random(10, 40));
+    case "ctrl":
+      return 2;
 
-  await pressKey(targetId, key, options);
+    case "meta":
+      return 4;
 
-  await sleep(random(10, 50));
+    case "shift":
+      return 8;
 
-  await keyUp(targetId, modifier, options);
+    default:
+      return 0;
+  }
+}
 
+export async function pressShortcut(targetId, modifier, key, options = {}) {
+  await pressKey(targetId, key, {
+    ...options,
+    modifiers: getModifierMask(modifier),
+  });
+  
   return true;
 }
 
@@ -518,13 +628,15 @@ export async function pressPageDown(targetId, options = {}) {
   return pressKey(targetId, "PageDown", options);
 }
 
-export async function copy(targetId, options = {}) {
+export async function copy(targetId, selector, options = {}) {
+  // await focus(targetId, selector, options);
+
   await sleep(random(50, 130));
   return pressShortcut(targetId, "Meta", "c", options);
 }
 
-export async function paste(targetId, options = {}) {
-  await sleep(random(50, 130));
+export async function paste(targetId, selector, options = {}) {
+  // await sleep(random(50, 130));
   return pressShortcut(targetId, "Meta", "v", options);
 }
 
@@ -549,16 +661,35 @@ export async function focusAtEnd(targetId, selector, options = {}) {
 }
 
 export async function selectAll(targetId, selector, options = {}) {
+const { Input } = await getClient(targetId, options);
+  await Input.dispatchKeyEvent({
+  type: "rawKeyDown",
+  // key: "v",
+  // code: "KeyV",
+  // windowsVirtualKeyCode: 86,
+  // modifiers: 4,
+  commands: ["SelectAll","Copy"],
+});
+
+// await Input.dispatchKeyEvent({
+//   type: "keyUp",
+  // key: "v",
+  // code: "KeyV",
+  // windowsVirtualKeyCode: 86,
+  // modifiers: 4,
+// });
+
+  // await sleep(random(50, 130));
+  // await pressShortcut(targetId, "Meta", "v", options);
+
+  // return true;
+}
+
+export async function clearAll(targetId, selector, options = {}) {
   await focus(targetId, selector, options);
 
   await sleep(random(50, 130));
   await pressShortcut(targetId, "Meta", "a", options);
-
-  return true;
-}
-
-export async function clearAll(targetId, selector, options = {}) {
-  await selectAll(targetId, selector, options);
 
   await sleep(random(40, 120));
   await pressKey(targetId, "Backspace", options);
@@ -655,25 +786,25 @@ async function inputTextByPaste(targetId, selector, text, options = {}) {
   const value = String(text);
   const typeNum = options.typeNum ?? 0;
 
-  if (typeNum > 0) {
-    const headText = value.slice(0, typeNum);
-    const restText = value.slice(typeNum);
+  // if (typeNum > 0) {
+  //   const headText = value.slice(0, typeNum);
+  //   const restText = value.slice(typeNum);
 
-    await typeText(targetId, selector, headText, {
-      ...options,
-      clear: false,
-    });
+  //   await typeText(targetId, selector, headText, {
+  //     ...options,
+  //     clear: false,
+  //   });
 
-    if (!restText) return true;
+  //   if (!restText) return true;
 
-    await writeClipboard(restText);
-    await paste(targetId, options);
+  //   await writeClipboard(restText);
+  //   await paste(targetId, selector, options);
 
-    return true;
-  }
+  //   return true;
+  // }
 
   await writeClipboard(value);
-  await paste(targetId, options);
+  await paste(targetId, selector, options);
 
   return true;
 }
@@ -685,5 +816,5 @@ export async function appendText(targetId, selector, text, options = {}) {
 
 export async function fillText(targetId, selector, text, options = {}) {
   await clearAll(targetId, selector, options);
-  return inputTextByPaste(targetId, selector, text, options);
+  // return inputTextByPaste(targetId, selector, text, options);
 }

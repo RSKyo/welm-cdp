@@ -21,7 +21,7 @@ function getCdpOptions(options = {}) {
 
 function normalizeTarget(target) {
   return {
-    id: target.targetId,
+    targetId: target.id,
     type: target.type ?? "",
     title: target.title ?? "",
     url: target.url ?? "",
@@ -30,43 +30,44 @@ function normalizeTarget(target) {
 
 /**
  * ----------------------------------------------------------------------------
- * Target (CDP raw layer only)
+ * Target
  * ----------------------------------------------------------------------------
  */
 
 async function listTargets(options = {}) {
   const cdpOptions = getCdpOptions(options);
 
-  const cdpTargets = await CDP.List(cdpOptions);
+  const rawTargets = await CDP.List(cdpOptions);
+  const targets = rawTargets.map(normalizeTarget);
 
   if (options.targetType) {
-    return cdpTargets.filter((t) => t.type === options.targetType);
+    return targets.filter((target) => target.type === options.targetType);
   }
 
-  return cdpTargets;
+  return targets;
 }
 
 async function getTarget(targetId, options = {}) {
-  const cdpTargets = await listTargets(options);
+  const targets = await listTargets(options);
 
-  const cdpTarget = cdpTargets.find((t) => t.targetId === targetId);
+  const target = targets.find((target) => target.targetId === targetId);
 
-  if (!cdpTarget) {
+  if (!target) {
     throw new Error(`target not found: ${targetId}`);
   }
 
-  return cdpTarget;
+  return target;
 }
 
 async function findTarget(keyword, options = {}) {
   const search = keyword.toLowerCase();
-  const cdpTargets = await listTargets(options);
+  const targets = await listTargets(options);
 
   return (
-    cdpTargets.find(
-      (t) =>
-        (t.title || "").toLowerCase().includes(search) ||
-        (t.url || "").toLowerCase().includes(search),
+    targets.find(
+      (target) =>
+        target.title.toLowerCase().includes(search) ||
+        target.url.toLowerCase().includes(search),
     ) ?? null
   );
 }
@@ -76,17 +77,19 @@ async function activateTarget(targetId, options = {}) {
 
   await CDP.Activate({
     ...cdpOptions,
-    targetId,
+    id: targetId,
   });
 }
 
 async function openTarget(url, options = {}) {
   const cdpOptions = getCdpOptions(options);
 
-  return await CDP.New({
+  const rawTarget = await CDP.New({
     ...cdpOptions,
     url,
   });
+
+  return normalizeTarget(rawTarget);
 }
 
 async function closeTarget(targetId, options = {}) {
@@ -242,46 +245,33 @@ export async function ensureChrome(options = {}) {
 
 /**
  * ----------------------------------------------------------------------------
- * Chrome Page (Domain layer with normalizeTarget)
+ * Chrome Page
  * ----------------------------------------------------------------------------
  */
 
-export async function listChromePages(options = {}) {
-  const cdpTargets = await listTargets({
+function getPageTargetOptions(options = {}) {
+  return {
     ...options,
     targetType: options.targetType ?? "page",
-  });
-
-  return cdpTargets.map(normalizeTarget);
+  };
 }
 
-export async function getChromePage(id, options = {}) {
-  const cdpTarget = await getTarget(id, {
-    ...options,
-    targetType: options.targetType ?? "page",
-  });
+export async function listChromePages(options = {}) {
+  return await listTargets(getPageTargetOptions(options));
+}
 
-  return normalizeTarget(cdpTarget);
+export async function getChromePage(targetId, options = {}) {
+  return await getTarget(targetId, getPageTargetOptions(options));
 }
 
 export async function findChromePage(keyword, options = {}) {
-  const cdpTarget = await findTarget(keyword, {
-    ...options,
-    targetType: options.targetType ?? "page",
-  });
-
-  return cdpTarget ? normalizeTarget(cdpTarget) : null;
+  return await findTarget(keyword, getPageTargetOptions(options));
 }
 
-export async function activateChromePage(id, options = {}) {
-  await activateTarget(id, options);
+export async function activateChromePage(targetId, options = {}) {
+  await activateTarget(targetId, options);
 
-  const cdpTarget = await getTarget(id, {
-    ...options,
-    targetType: options.targetType ?? "page",
-  });
-
-  return normalizeTarget(cdpTarget);
+  return await getTarget(targetId, getPageTargetOptions(options));
 }
 
 /**
@@ -293,16 +283,16 @@ export async function activateChromePage(id, options = {}) {
  * 本方法仅表示导航开始，
  * 不表示页面已加载完成。
  */
-async function waitLeaveAboutBlank(id, options = {}) {
+async function waitLeaveAboutBlank(targetId, options = {}) {
   const timeout = 2000;
   const interval = 50;
 
   const start = Date.now();
 
   while (Date.now() - start < timeout) {
-    const cdpTarget = await getTarget(id, options);
+    const target = await getTarget(targetId, getPageTargetOptions(options));
 
-    if (cdpTarget.url !== "about:blank") {
+    if (target.url !== "about:blank") {
       return;
     }
 
@@ -312,7 +302,9 @@ async function waitLeaveAboutBlank(id, options = {}) {
     await sleep(Math.min(interval, remaining));
   }
 
-  throw new Error(`leave about:blank timeout: id=${id}, timeout=${timeout}ms`);
+  throw new Error(
+    `leave about:blank timeout: targetId=${targetId}, timeout=${timeout}ms`,
+  );
 }
 
 /**
@@ -324,13 +316,13 @@ async function waitLeaveAboutBlank(id, options = {}) {
  *
  * 这样可以避免监听过晚导致错过事件。
  */
-async function waitPageReady(id, options = {}) {
+async function waitPageReady(targetId, options = {}) {
   const cdpOptions = getCdpOptions(options);
   const timeout = 30000;
 
   const client = await CDP({
     ...cdpOptions,
-    targetId: id,
+    targetId,
   });
 
   let timer;
@@ -357,13 +349,17 @@ async function waitPageReady(id, options = {}) {
 
       timer = setTimeout(() => {
         cleanup(onLoad);
-        reject(new Error(`Page load timeout: id=${id}, timeout=${timeout}ms`));
+        reject(
+          new Error(
+            `Page load timeout: targetId=${targetId}, timeout=${timeout}ms`,
+          ),
+        );
       }, timeout);
 
       client.once("Page.loadEventFired", onLoad);
     });
 
-    await waitLeaveAboutBlank(id, options);
+    await waitLeaveAboutBlank(targetId, options);
     await loadPromise;
   } finally {
     await client.close();
@@ -375,45 +371,39 @@ export async function openChromePage(url, options = {}) {
 
   options.reporter?.progress("Opening page...", options);
 
-  let cdpTarget = await openTarget(url, options);
-  const id = cdpTarget.targetId;
+  let target = await openTarget(url, options);
+  const { targetId } = target;
 
   options.reporter?.progress("Waiting for page...", options);
 
-  await waitPageReady(id, options);
+  await waitPageReady(targetId, options);
 
   // 由于 url 是异步加载的，因此前面获取的 target title 是空的，需要重新获取。
-  cdpTarget = await getTarget(id, {
-    ...options,
-    targetType: options.targetType ?? "page",
-  });
+  target = await getTarget(targetId, getPageTargetOptions(options));
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
 
   options.reporter?.progressDone(`Page is ready (${elapsed}s)`, options);
 
-  return normalizeTarget(cdpTarget);
+  return target;
 }
 
 export async function ensureChromePage(url, options = {}) {
   const keyword = options.keyword ?? url;
 
-  const page = await findChromePage(keyword, options);
+  const target = await findChromePage(keyword, options);
 
-  if (page) {
-    return page;
+  if (target) {
+    return target;
   }
 
   return await openChromePage(url, options);
 }
 
-export async function closeChromePage(id, options = {}) {
-  const cdpTarget = await getTarget(id, {
-    ...options,
-    targetType: options.targetType ?? "page",
-  });
+export async function closeChromePage(targetId, options = {}) {
+  const target = await getTarget(targetId, getPageTargetOptions(options));
 
-  await closeTarget(id, options);
+  await closeTarget(targetId, options);
 
-  return normalizeTarget(cdpTarget);
+  return target;
 }

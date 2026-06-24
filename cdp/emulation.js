@@ -1,42 +1,6 @@
 import { getClient } from "./client.js";
 
 /**
- * ----------------------------------------------------------------------------
- * Base Utils
- * ----------------------------------------------------------------------------
- */
-
-function toPositiveInteger(value, name) {
-  const number = Number(value);
-
-  if (!Number.isFinite(number) || !Number.isInteger(number) || number <= 0) {
-    throw new Error(`${name} must be a positive integer, got: ${value}`);
-  }
-
-  return number;
-}
-
-function toNonNegativeInteger(value, name) {
-  const number = Number(value);
-
-  if (!Number.isFinite(number) || !Number.isInteger(number) || number < 0) {
-    throw new Error(`${name} must be a non-negative integer, got: ${value}`);
-  }
-
-  return number;
-}
-
-function toPositiveNumber(value, name) {
-  const number = Number(value);
-
-  if (!Number.isFinite(number) || number <= 0) {
-    throw new Error(`${name} must be a positive number, got: ${value}`);
-  }
-
-  return number;
-}
-
-/**
  * 获取 Emulation 域客户端。
  */
 async function getEmulation(targetId, options = {}) {
@@ -66,13 +30,7 @@ async function setDeviceMetrics(targetId, metrics, options = {}) {
  * 设置视口。
  */
 export async function setViewport(targetId, width, height, options = {}) {
-  width = toPositiveInteger(width, "width");
-  height = toPositiveInteger(height, "height");
-
-  const deviceScaleFactor = toPositiveNumber(
-    options.deviceScaleFactor ?? 1,
-    "deviceScaleFactor",
-  );
+  const deviceScaleFactor = options.deviceScaleFactor ?? 1;
 
   const mobile = options.mobile;
 
@@ -113,23 +71,10 @@ export async function setMobileViewport(
   height = 844,
   options = {},
 ) {
-  width = toPositiveInteger(width, "width");
-  height = toPositiveInteger(height, "height");
+  const deviceScaleFactor = options.deviceScaleFactor ?? 3;
 
-  const deviceScaleFactor = toPositiveNumber(
-    options.deviceScaleFactor ?? 3,
-    "deviceScaleFactor",
-  );
-
-  const screenWidth = toPositiveInteger(
-    options.screenWidth ?? width,
-    "screenWidth",
-  );
-
-  const screenHeight = toPositiveInteger(
-    options.screenHeight ?? height,
-    "screenHeight",
-  );
+  const screenWidth = options.screenWidth ?? width;
+  const screenHeight = options.screenHeight ?? height;
 
   const orientation =
     height >= width
@@ -203,8 +148,6 @@ async function setTouchEmulation(
   maxTouchPoints = 1,
   options = {},
 ) {
-  maxTouchPoints = toNonNegativeInteger(maxTouchPoints, "maxTouchPoints");
-
   const Emulation = await getEmulation(targetId, options);
 
   await Emulation.setTouchEmulationEnabled({

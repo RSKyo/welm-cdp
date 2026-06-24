@@ -44,7 +44,7 @@ export const CHROME_COMMANDS = {
 
   get: {
     handler: cmd_getChromePage,
-    usage: "chrome get <id> [options]",
+    usage: "chrome get <targetId> [options]",
     description: "Get Chrome page",
     options: `${CDP_OPTIONS} ${PAGE_OPTIONS}`,
   },
@@ -58,7 +58,7 @@ export const CHROME_COMMANDS = {
 
   activate: {
     handler: cmd_activateChromePage,
-    usage: "chrome activate <id> [options]",
+    usage: "chrome activate <targetId> [options]",
     description: "Activate Chrome page",
     options: `${CDP_OPTIONS} ${PAGE_OPTIONS}`,
   },
@@ -79,7 +79,7 @@ export const CHROME_COMMANDS = {
 
   close: {
     handler: cmd_closeChromePage,
-    usage: "chrome close <id> [options]",
+    usage: "chrome close <targetId> [options]",
     description: "Close Chrome page",
     options: `${CDP_OPTIONS} ${PAGE_OPTIONS}`,
   },
@@ -110,103 +110,106 @@ export async function cmd_ensureChrome({ options } = {}) {
 }
 
 /**
- * 获取所有 Chrome 网页。
+ * 获取所有 Chrome 页面。
  */
 export async function cmd_listChromePages({ options } = {}) {
-  const pages = await listChromePages(options);
+  const targets = await listChromePages(options);
 
-  const total = pages.length;
-  pages.forEach((page, index) => {
-    log.info(`(${index + 1}/${total}) ${page.id} ${page.title}`, options);
+  const total = targets.length;
+  targets.forEach((target, index) => {
+    log.info(
+      `(${index + 1}/${total}) ${target.targetId} ${target.title}`,
+      options,
+    );
   });
 
-  return pages;
+  return targets;
 }
 
 /**
- * 获取指定 Chrome 网页。
+ * 获取指定 Chrome 页面。
  */
 export async function cmd_getChromePage({ argv, options } = {}) {
-  const [id] = argv;
-  assertNonBlank(id, "id");
+  const [targetId] = argv;
+  assertNonBlank(targetId, "targetId");
 
-  const page = await getChromePage(id, options);
+  const target = await getChromePage(targetId, options);
 
-  log.info(`${page.id} ${page.title}`, options);
+  log.info(`${target.targetId} ${target.title}`, options);
 
-  return page;
+  return target;
 }
 
 /**
- * 根据关键字查找 Chrome 网页。
+ * 根据关键字查找 Chrome 页面。
  */
 export async function cmd_findChromePage({ argv, options } = {}) {
   const [keyword] = argv;
   assertNonBlank(keyword, "keyword");
 
-  const page = await findChromePage(keyword, options);
+  const target = await findChromePage(keyword, options);
 
-  if (page) {
-    log.info(`${page.id} ${page.title}`, options);
+  if (target) {
+    log.info(`${target.targetId} ${target.title}`, options);
   } else {
     log.warn(`No matching Chrome page found for keyword: ${keyword}`, options);
   }
 
-  return page;
+  return target;
 }
 
 /**
- * 激活 Chrome 网页。
+ * 激活 Chrome 页面。
  */
 export async function cmd_activateChromePage({ argv, options } = {}) {
-  const [id] = argv;
-  assertNonBlank(id, "id");
+  const [targetId] = argv;
+  assertNonBlank(targetId, "targetId");
 
-  const page = await activateChromePage(id, options);
+  const target = await activateChromePage(targetId, options);
 
-  log.info(`${page.id} ${page.title}`, options);
+  log.info(`${target.targetId} ${target.title}`, options);
 
-  return page;
+  return target;
 }
 
 /**
- * 新建 Chrome 网页。
+ * 新建 Chrome 页面。
  */
 export async function cmd_openChromePage({ argv, options } = {}) {
   const [url] = argv;
   assertHttpUrl(url, "url");
 
-  const page = await openChromePage(url, options);
+  const target = await openChromePage(url, options);
 
-  log.info(`${page.id} ${page.title}`, options);
+  log.info(`${target.targetId} ${target.title}`, options);
 
-  return page;
+  return target;
 }
 
 /**
- * 查找或打开 Chrome 网页。
+ * 查找或打开 Chrome 页面。
  */
 export async function cmd_ensureChromePage({ argv, options } = {}) {
   const [url] = argv;
   assertHttpUrl(url, "url");
 
-  const page = await ensureChromePage(url, options);
+  const target = await ensureChromePage(url, options);
 
-  log.info(`${page.id} ${page.title}`, options);
+  log.info(`${target.targetId} ${target.title}`, options);
 
-  return page;
+  return target;
 }
 
 /**
- * 关闭 Chrome 网页。
+ * 关闭 Chrome 页面。
  */
 export async function cmd_closeChromePage({ argv, options } = {}) {
-  const [id] = argv;
-  assertNonBlank(id, "id");
+  const [targetId] = argv;
+  assertNonBlank(targetId, "targetId");
 
-  const page = await closeChromePage(id, options);
+  const target = await closeChromePage(targetId, options);
 
-  log.info(`${page.id} ${page.title}`, options);
+  log.info(`${target.targetId} ${target.title}`, options);
 
-  return page;
+  return target;
 }

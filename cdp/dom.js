@@ -10,23 +10,7 @@ function q(value) {
   return JSON.stringify(value);
 }
 
-function assertNth(options = {}) {
-  if (!Object.hasOwn(options, "nth")) {
-    return 0;
-  }
-
-  const nth = options.nth;
-
-  if (!Number.isInteger(nth)) {
-    throw new Error(`nth must be an integer, got: ${nth}`);
-  }
-
-  return nth;
-}
-
 function buildElementResolver(selector, options = {}) {
-  const nth = normalizeNth(options);
-
   return `
     (() => {
       const elements = document.querySelectorAll(${q(selector)});
@@ -36,7 +20,7 @@ function buildElementResolver(selector, options = {}) {
         throw new Error("element not found");
       }
 
-      let index = ${nth};
+      let index = ${options.nth ?? 0};
 
       if (index < 0) {
         index = count + index;
@@ -52,8 +36,6 @@ function buildElementResolver(selector, options = {}) {
 }
 
 function buildElementResolverSafe(selector, options = {}) {
-  const nth = normalizeNth(options);
-
   return `
     (() => {
       const elements = document.querySelectorAll(${q(selector)});
@@ -63,7 +45,7 @@ function buildElementResolverSafe(selector, options = {}) {
         return null;
       }
 
-      let index = ${nth};
+      let index = ${options.nth ?? 0};
 
       if (index < 0) {
         index = count + index;

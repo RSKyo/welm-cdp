@@ -14,8 +14,7 @@ export const CHATGPT_COMMANDS = {
   },
 };
 
-export async function cmd_ask(ctx) {
-  const { argv, options } = ctx;
+export async function cmd_ask({ argv, options }) {
   const [prompt] = argv;
 
   assertNonBlank(prompt, "prompt");

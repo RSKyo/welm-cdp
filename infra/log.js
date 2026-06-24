@@ -1,5 +1,3 @@
-import { getDisplayWidth } from "./utils.js";
-
 const COLOR = {
   reset: "\x1b[0m",
   red: "\x1b[31m",
@@ -8,6 +6,16 @@ const COLOR = {
 };
 
 let lastLength = 0;
+
+function getDisplayWidth(text) {
+  let width = 0;
+
+  for (const ch of text) {
+    width += ch.charCodeAt(0) > 255 ? 2 : 1;
+  }
+
+  return width;
+}
 
 // --json 表示命令输出为 JSON，此时不输出任何日志，只返回最终结果。
 function isSilent(options = {}) {

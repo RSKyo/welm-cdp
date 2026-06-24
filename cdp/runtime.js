@@ -4,19 +4,6 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
- function assertPositiveInteger(value, fieldName = "value") {
-  if (
-    typeof value !== "number" ||
-    !Number.isFinite(value) ||
-    !Number.isInteger(value) ||
-    value <= 0
-  ) {
-    throw new Error(`${fieldName} must be a positive integer, got: ${value}`);
-  }
-
-  return value;
-}
-
 /**
  * 在页面上下文中执行 JavaScript 表达式。
  *
@@ -116,10 +103,6 @@ export async function poll(targetId, expression, options = {}) {
   const interval = options.interval ?? 500;
   const matcher = options.matcher ?? defaultMatcher;
   const matchTimes = options.matchTimes ?? 1;
-
-  assertPositiveInteger(timeout, "timeout");
-  assertPositiveInteger(interval, "interval");
-  assertPositiveInteger(matchTimes, "matchTimes");
 
   const start = Date.now();
 
