@@ -46,17 +46,11 @@
 
     <script>
       const log = document.getElementById("log");
-      const moving = document.getElementById("moving");
-
-      let aPressed = false;
 
       function println(text) {
         log.textContent += text + "\n";
+        navigator.clipboard.writeText(log.textContent);
         log.scrollTop = log.scrollHeight;
-      }
-
-      function update() {
-        moving.textContent = aPressed;
       }
 
       function show(prefix, e) {
@@ -74,20 +68,10 @@ meta=${e.metaKey}
       }
 
       window.addEventListener("keydown", (e) => {
-        if (e.key === "a") {
-          aPressed = true;
-          update();
-        }
-
         show("keydown", e);
       });
 
       window.addEventListener("keyup", (e) => {
-        if (e.key === "a") {
-          aPressed = false;
-          update();
-        }
-
         show("keyup", e);
       });
 

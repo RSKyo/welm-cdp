@@ -1,7 +1,7 @@
 import {
-editCommand,
+
   selectAll,
-  
+  enter,
 
 
 } from "../cdp/input.js";
@@ -12,8 +12,9 @@ const INPUT_OPTIONS = "--host --port";
 
 export const INPUT_COMMANDS = {
  
-  command: {
-handler: cmd_editCommand,
+
+  enter: {
+handler: cmd_enter,
   },
 
   selall: {
@@ -31,11 +32,7 @@ handler: cmd_editCommand,
  * ----------------------------------------------------------------------------
  */
 
-export async function cmd_editCommand({ argv, options } = {}) {
-  const [targetId, commands] = argv;
 
-  return editCommand(targetId, commands);
-}
 
 export async function cmd_selectAll({ argv, options } = {}) {
   const [targetId, selector] = argv;
@@ -44,4 +41,11 @@ export async function cmd_selectAll({ argv, options } = {}) {
   assertNonBlank(selector, "selector");
 
   return selectAll(targetId, selector, options);
+}
+export async function cmd_enter({ argv, options } = {}) {
+  const [targetId] = argv;
+
+  assertNonBlank(targetId, "targetId");
+
+  return enter(targetId, options);
 }

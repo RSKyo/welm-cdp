@@ -21,7 +21,6 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-
 /**
  * Executes one or more browser editing commands.
  *
@@ -35,7 +34,7 @@ function sleep(ms) {
  * - Undo
  * - Redo
  */
-export async function editCommand(targetId, commands, options) {
+async function editCommand(targetId, commands, options) {
   commands = Array.isArray(commands) ? commands : [commands];
 
   const { Input } = await getClient(targetId, options);
@@ -46,17 +45,91 @@ export async function editCommand(targetId, commands, options) {
   });
 }
 
+function getModifiers(options) {
+  if (!options.with) {
+    return 0;
+  }
+
+  const keys = Array.isArray(options.with) ? options.with : [options.with];
+
+  let modifiers = 0;
+
+  for (const k of keys) {
+    switch (k.toLowerCase()) {
+      case "alt":
+        modifiers |= 1;
+        break;
+      case "ctrl":
+        modifiers |= 2;
+        break;
+      case "meta":
+      case "cmd":
+      case "win":
+        modifiers |= 4;
+        break;
+      case "shift":
+        modifiers |= 8;
+        break;
+    }
+  }
+
+  return modifiers;
+}
+
+async function pressKey(targetId, key, code, options = {}) {
+  const modifiers = getModifiers(options);
+
+  const client = options.client ?? (await getClient(targetId, options));
+  const Input = client.Input;
+
+  const event = {
+    type: "keyDown",
+    key,
+    code,
+    modifiers,
+  };
+
+  if (options.text !== undefined) {
+    event.text = options.text;
+  }
+
+  await Input.dispatchKeyEvent(event);
+
+  await Input.dispatchKeyEvent({
+    type: "keyUp",
+    key,
+    code,
+    modifiers,
+  });
+
+  return true;
+}
+
+export async function enter(targetId, options = {}) {
+  return pressKey(targetId, "Enter", "Enter", {
+    ...options,
+    text: "\r",
+  });
+}
+
 export async function selectAll(targetId, selector, options = {}) {
   const { Input } = await getClient(targetId, options);
 
-  await Input.dispatchKeyEvent({
-    type: "rawKeyDown",
-    text: "你好",
-  });
+  // await Input.dispatchKeyEvent({
+  //   type: "rawKeyDown",
+  //   text: "你好",
+  // });
+
+  // await Input.dispatchKeyEvent({
+  //   type: "rawKeyDown",
+  //   commands: ["Delete"],
+  // });
 
   await Input.dispatchKeyEvent({
-    type: "rawKeyDown",
-    commands: ["Delete"],
+    type: "keyDown",
+
+    commands: ["InsertText"],
+    text: "你",
   });
 }
 
