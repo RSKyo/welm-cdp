@@ -39,6 +39,26 @@ function unquoteString(value) {
   return value.trim().slice(1, -1);
 }
 
+function isArrayString(value) {
+  if (typeof value !== "string") return false;
+
+  const text = value.trim();
+
+  return text.startsWith("[") && text.endsWith("]");
+}
+
+function parseArrayLiteral(value) {
+  const text = value.trim().slice(1, -1).trim();
+
+  if (text === "") {
+    return [];
+  }
+
+  return text
+    .split(",")
+    .map((item) => parseValue(item.trim()));
+}
+
 function parseValue(value) {
   if (isNumberString(value)) {
     return Number(value);
@@ -50,6 +70,10 @@ function parseValue(value) {
 
   if (isQuotedString(value)) {
     return unquoteString(value);
+  }
+
+  if (isArrayString(value)) {
+    return parseArrayLiteral(value);
   }
 
   return value;

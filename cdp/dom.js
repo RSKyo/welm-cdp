@@ -66,6 +66,20 @@ function buildElementResolverSafe(selector, options = {}) {
  * ----------------------------------------------------------------------------
  */
 
+export async function focus(targetId, selector, options = {}) {
+  const expression = `
+    (() => {
+      const el = ${buildElementResolver(selector, options)};
+      el.focus();
+      return true;
+    })()
+  `;
+
+  await evaluate(targetId, expression, options);
+
+  return true;
+}
+
 export async function scrollIntoView(targetId, selector, options = {}) {
   const expression = `
     (() => {

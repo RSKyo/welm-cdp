@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Keyboard Test</title>
+    <style>
+      body {
+        font-family: monospace;
+        padding: 20px;
+      }
+
+      #box {
+        width: 600px;
+        height: 120px;
+        border: 2px solid #666;
+        padding: 10px;
+        outline: none;
+      }
+
+      pre {
+        margin-top: 20px;
+        background: #f5f5f5;
+        padding: 10px;
+        height: 400px;
+        overflow: auto;
+      }
+
+      .status {
+        margin: 15px 0;
+        font-size: 18px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h2>CDP Keyboard Test</h2>
+
+    <div id="box" contenteditable="true">Click here first...</div>
+
+    <div class="status">
+      A Pressed:
+      <span id="moving">false</span>
+    </div>
+
+    <pre id="log"></pre>
+
+    <script>
+      const log = document.getElementById("log");
+      const moving = document.getElementById("moving");
+
+      let aPressed = false;
+
+      function println(text) {
+        log.textContent += text + "\n";
+        log.scrollTop = log.scrollHeight;
+      }
+
+      function update() {
+        moving.textContent = aPressed;
+      }
+
+      function show(prefix, e) {
+        println(
+          `${prefix}
+key=${e.key}
+code=${e.code}
+repeat=${e.repeat}
+ctrl=${e.ctrlKey}
+shift=${e.shiftKey}
+alt=${e.altKey}
+meta=${e.metaKey}
+----------------------`,
+        );
+      }
+
+      window.addEventListener("keydown", (e) => {
+        if (e.key === "a") {
+          aPressed = true;
+          update();
+        }
+
+        show("keydown", e);
+      });
+
+      window.addEventListener("keyup", (e) => {
+        if (e.key === "a") {
+          aPressed = false;
+          update();
+        }
+
+        show("keyup", e);
+      });
+
+      window.addEventListener("keypress", (e) => {
+        show("keypress", e);
+      });
+
+      ["beforeinput", "input"].forEach((type) => {
+        window.addEventListener(type, (e) => {
+          println(type);
+          println(`inputType=${e.inputType}`);
+          println(`data=${e.data}`);
+          println("----------------");
+        });
+      });
+
+      window.addEventListener("selectionchange", () => {
+        println("selectionchange");
+      });
+    </script>
+  </body>
+</html>

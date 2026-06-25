@@ -1,5 +1,5 @@
 import { ensureChrome, ensureChromePage, activateChromePage } from "../../cdp/chrome.js";
-import { fillText, click, selectAll } from "../../cdp/input.js";
+import {  selectAll } from "../../cdp/input.js";
 import { waitElementAppear, waitElementDisappear } from "../../cdp/dom.js";
 
 import { log } from "../../infra/log.js";
@@ -19,23 +19,22 @@ export function sleep(ms) {
 }
 
 export async function ask(prompt, options = {}) {
-;
 
 
-  await ensureChrome(options);
+//   await ensureChrome(options);
 
-  const url = options.temp
-    ? `${chatgpt_url}/?temporary-chat=true`
-    : chatgpt_url;
-  const { targetId } = await ensureChromePage(url, options);
+//   const url = options.temp
+//     ? `${chatgpt_url}/?temporary-chat=true`
+//     : chatgpt_url;
+//   const { targetId } = await ensureChromePage(url, options);
 
-  const startTime = Date.now();
+//   const startTime = Date.now();
 
-  // 写入
-  log.progress("Preparing prompt...");
-await activateChromePage(targetId, options);
+//   // 写入
+//   log.progress("Preparing prompt...");
+// await activateChromePage(targetId, options);
 
-  await fillText(targetId, TEXTAREA_SELECTOR, prompt, options);
+//   await fillText(targetId, TEXTAREA_SELECTOR, prompt, options);
 
   // // 提交
   // log.progress("Submitting prompt...");
