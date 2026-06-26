@@ -77,38 +77,59 @@ function getModifiers(options) {
 }
 
 async function pressKey(targetId, key, code, options = {}) {
-  const modifiers = getModifiers(options);
-
   const client = options.client ?? (await getClient(targetId, options));
   const Input = client.Input;
 
+  const modifiers = getModifiers(options);
+  const event_windowsVirtualKeyCode = options.windowsVirtualKeyCode
+    ? { windowsVirtualKeyCode: options.windowsVirtualKeyCode }
+    : {};
+  const event_nativeVirtualKeyCode = options.nativeVirtualKeyCode
+    ? { nativeVirtualKeyCode: options.nativeVirtualKeyCode }
+    : {};
+  const event_text = options.text ? { text: options.text } : {};
+
   const event = {
-    type: "keyDown",
     key,
     code,
     modifiers,
+    ...event_windowsVirtualKeyCode,
+    ...event_nativeVirtualKeyCode,
   };
 
-  if (options.text !== undefined) {
-    event.text = options.text;
-  }
-
-  await Input.dispatchKeyEvent(event);
+  await Input.dispatchKeyEvent({
+    type: modifiers === 0 ? "keyDown" : "rawKeyDown",
+    ...event,
+    ...event_text,
+  });
 
   await Input.dispatchKeyEvent({
     type: "keyUp",
     key,
     code,
-    modifiers,
+    ...event,
   });
 
   return true;
 }
 
 export async function enter(targetId, options = {}) {
-  return pressKey(targetId, "Enter", "Enter", {
+  await pressKey(targetId, "Enter", "Enter", {
     ...options,
     text: "\r",
+  });
+}
+
+export async function cmdc(targetId, options = {}) {
+
+  // await pressKey(targetId, "a", "KeyA", {
+  //   ...options,
+  //   with: "cmd",
+  // });
+
+  await pressKey(targetId, "v", "KeyV", {
+    ...options,
+    with: "cmd",
   });
 }
 
