@@ -1,5 +1,4 @@
 import { ensureChrome, ensureChromePage, activateChromePage } from "../../cdp/chrome.js";
-import {  selectAll } from "../../cdp/input.js";
 import { waitElementAppear, waitElementDisappear } from "../../cdp/dom.js";
 
 import { log } from "../../infra/log.js";

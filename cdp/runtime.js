@@ -21,8 +21,7 @@ function sleep(ms) {
  *   expression 的执行结果
  */
 export async function evaluate(targetId, expression, options = {}) {
-  const client = await getClient(targetId, options);
-  const { Runtime } = client;
+  const { Runtime } = await getClient(targetId, options);
 
   const { result, exceptionDetails } = await Runtime.evaluate({
     expression,

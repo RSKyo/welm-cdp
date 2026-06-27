@@ -54,9 +54,7 @@ function parseArrayLiteral(value) {
     return [];
   }
 
-  return text
-    .split(",")
-    .map((item) => parseValue(item.trim()));
+  return text.split(",").map((item) => parseValue(item.trim()));
 }
 
 function parseValue(value) {
@@ -118,8 +116,28 @@ function getCommandNames(commands) {
   return Object.keys(commands).join(", ");
 }
 
+function isTargetId(value) {
+  return /^[0-9A-F]{32}$/i.test(value);
+}
+
 export function resolveCommand(processArgv, commandGroups) {
-  const [, , groupName, commandName, ...args] = processArgv;
+  // groupName, commandName, ...args(includes targetId)
+  // targetId, groupName, commandName, ...args(excludes targetId)
+  const [, , arg1, arg2, ...rest] = processArgv;
+
+  let groupName;
+  let commandName;
+  let args;
+
+  if (isTargetId(arg1)) {
+    groupName = arg2;
+    commandName = rest.shift();
+    args = [arg1, ...rest];
+  } else {
+    groupName = arg1;
+    commandName = arg2;
+    args = rest;
+  }
 
   const groupNames = getCommandNames(commandGroups);
 

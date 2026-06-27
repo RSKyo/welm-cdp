@@ -40,9 +40,7 @@ function formatFileName(template, date = new Date()) {
 /**
  * Get page layout metrics.
  */
-async function getLayoutMetrics(targetId, options = {}) {
-  const { Page } = await getClient(targetId, options);
-
+async function getLayoutMetrics(Page) {
   const res = await Page.getLayoutMetrics();
 
   return {
@@ -63,8 +61,8 @@ async function getLayoutMetrics(targetId, options = {}) {
 /**
  * Get full-page screenshot clip region.
  */
-async function getFullPageClip(targetId, options = {}) {
-  const metrics = await getLayoutMetrics(targetId, options);
+async function getFullPageClip(Page) {
+  const metrics = await getLayoutMetrics(Page);
 
   const size = metrics.css.contentSize ?? metrics.layout.contentSize;
 
@@ -139,7 +137,7 @@ export async function captureScreenshot(targetId, options = {}) {
 
   const res = await Page.captureScreenshot({
     format: "png",
-    clip: options.clip ?? (await getFullPageClip(targetId, options)),
+    clip: options.clip ?? (await getFullPageClip(Page)),
 
     fromSurface: true,
     captureBeyondViewport: true,

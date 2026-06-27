@@ -1,5 +1,5 @@
 import { getClient } from "./client.js";
-import { scrollIntoView, getElementBox, waitClickable } from "./dom.js";
+import { focus, scrollIntoView } from "./dom.js";
 
 import { writeClipboard } from "../utils/clipboard.js";
 
@@ -21,8 +21,13 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function prop(key, value) {
+  return value === undefined ? {} : { [key]: value };
+}
+
 /**
  * Executes one or more browser editing commands.
+ * For testing editing commands.
  *
  * Examples:
  * - Paste
@@ -34,7 +39,7 @@ function sleep(ms) {
  * - Undo
  * - Redo
  */
-async function editCommand(targetId, commands, options) {
+export async function editCommand(targetId, commands, options) {
   commands = Array.isArray(commands) ? commands : [commands];
 
   const { Input } = await getClient(targetId, options);
@@ -45,12 +50,71 @@ async function editCommand(targetId, commands, options) {
   });
 }
 
-function getModifiers(options) {
-  if (!options.with) {
+const MODIFIER_KEYS = {
+  alt: {
+    key: "Alt",
+    code: "AltLeft",
+  },
+
+  ctrl: {
+    key: "Control",
+    code: "ControlLeft",
+  },
+
+  meta: {
+    key: "Meta",
+    code: "MetaLeft",
+  },
+
+  cmd: {
+    key: "Meta",
+    code: "MetaLeft",
+  },
+
+  win: {
+    key: "Meta",
+    code: "MetaLeft",
+  },
+
+  shift: {
+    key: "Shift",
+    code: "ShiftLeft",
+  },
+};
+
+async function pretendPress(Input, keyEventWith, type = "keyDown") {
+  if (!keyEventWith) return;
+
+  const keys = Array.isArray(keyEventWith) ? [...keyEventWith] : [keyEventWith];
+
+  if (type === "keyUp") {
+    keys.reverse();
+  }
+
+  for (const key of keys) {
+    const modifier = MODIFIER_KEYS[key.toLowerCase()];
+    if (!modifier) continue;
+
+    await Input.dispatchKeyEvent({
+      type,
+      key: modifier.key,
+      code: modifier.code,
+    });
+
+    if (type === "keyDown") {
+      await sleep(random(20, 50));
+    } else {
+      await sleep(random(40, 120));
+    }
+  }
+}
+
+function getModifiers(keyEventWith) {
+  if (!keyEventWith) {
     return 0;
   }
 
-  const keys = Array.isArray(options.with) ? options.with : [options.with];
+  const keys = Array.isArray(keyEventWith) ? keyEventWith : [keyEventWith];
 
   let modifiers = 0;
 
@@ -77,235 +141,261 @@ function getModifiers(options) {
 }
 
 async function pressKey(targetId, key, code, options = {}) {
-  const client = options.client ?? (await getClient(targetId, options));
-  const Input = client.Input;
+  const { Input } = await getClient(targetId, options);
 
-  const modifiers = getModifiers(options);
-  const event_windowsVirtualKeyCode = options.windowsVirtualKeyCode
-    ? { windowsVirtualKeyCode: options.windowsVirtualKeyCode }
-    : {};
-  const event_nativeVirtualKeyCode = options.nativeVirtualKeyCode
-    ? { nativeVirtualKeyCode: options.nativeVirtualKeyCode }
-    : {};
-  const event_text = options.text ? { text: options.text } : {};
+  const modifiers = getModifiers(options.keyEventWith);
 
   const event = {
     key,
     code,
     modifiers,
-    ...event_windowsVirtualKeyCode,
-    ...event_nativeVirtualKeyCode,
+    ...prop("windowsVirtualKeyCode", options.keyEventWindowsVirtualKeyCode),
+    ...prop("nativeVirtualKeyCode", options.keyEventNativeVirtualKeyCode),
   };
+
+  await pretendPress(Input, options.keyEventWith, "keyDown");
 
   await Input.dispatchKeyEvent({
     type: modifiers === 0 ? "keyDown" : "rawKeyDown",
     ...event,
-    ...event_text,
+    ...prop("text", options.keyEventText),
+    ...prop("commands", options.keyEventCommands),
   });
+
+  await sleep(random(20, 50));
 
   await Input.dispatchKeyEvent({
     type: "keyUp",
-    key,
-    code,
     ...event,
+  });
+
+  await sleep(random(40, 120));
+
+  await pretendPress(Input, options.keyEventWith, "keyUp");
+
+  return true;
+}
+
+export async function keyEnter(targetId, options = {}) {
+  await pressKey(targetId, "Enter", "Enter", {
+    ...options,
+    keyEventText: "\r",
+  });
+}
+
+export async function keyDelete(targetId, options = {}) {
+  await pressKey(targetId, "Delete", "Delete", {
+    ...options,
+    keyEventCommands: ["Delete"],
+  });
+}
+
+export async function keyBackspace(targetId, options = {}) {
+  await pressKey(targetId, "Backspace", "Backspace", {
+    ...options,
+    keyEventCommands: ["BackwardDelete"],
+  });
+}
+
+export async function focusHome(targetId, options = {}) {
+  await pressKey(targetId, "ArrowUp", "ArrowUp", {
+    ...options,
+    keyEventWith: "cmd",
+    keyEventCommands: ["MoveToBeginningOfDocument"],
   });
 
   return true;
 }
 
-export async function enter(targetId, options = {}) {
-  await pressKey(targetId, "Enter", "Enter", {
+export async function focusEnd(targetId, options = {}) {
+  await pressKey(targetId, "ArrowDown", "ArrowDown", {
     ...options,
-    text: "\r",
+    keyEventWith: "cmd",
+    keyEventCommands: ["MoveToEndOfDocument"],
   });
+
+  return true;
 }
 
-export async function cmdc(targetId, options = {}) {
+export async function focusLineStart(targetId, options = {}) {
+  await pressKey(targetId, "ArrowLeft", "ArrowLeft", {
+    ...options,
+    keyEventWith: "cmd",
+    keyEventCommands: ["MoveToBeginningOfLine"],
+  });
 
-  // await pressKey(targetId, "a", "KeyA", {
-  //   ...options,
-  //   with: "cmd",
-  // });
+  return true;
+}
 
+export async function focusLineEnd(targetId, options = {}) {
+  await pressKey(targetId, "ArrowRight", "ArrowRight", {
+    ...options,
+    keyEventWith: "cmd",
+    keyEventCommands: ["MoveToEndOfLine"],
+  });
+
+  return true;
+}
+
+export async function focusLeft(targetId, options = {}) {
+  await pressKey(targetId, "ArrowLeft", "ArrowLeft", {
+    ...options,
+    keyEventCommands: ["MoveLeft"],
+  });
+
+  return true;
+}
+
+export async function focusRight(targetId, options = {}) {
+  await pressKey(targetId, "ArrowRight", "ArrowRight", {
+    ...options,
+    keyEventCommands: ["MoveRight"],
+  });
+
+  return true;
+}
+
+export async function focusUp(targetId, options = {}) {
+  await pressKey(targetId, "ArrowUp", "ArrowUp", {
+    ...options,
+    keyEventCommands: ["MoveUp"],
+  });
+
+  return true;
+}
+
+export async function focusDown(targetId, options = {}) {
+  await pressKey(targetId, "ArrowDown", "ArrowDown", {
+    ...options,
+    keyEventCommands: ["MoveDown"],
+  });
+
+  return true;
+}
+
+export async function scrollTop(targetId, options = {}) {
+  await pressKey(targetId, "ArrowUp", "ArrowUp", {
+    ...options,
+    keyEventWith: "cmd",
+    keyEventCommands: ["ScrollToBeginningOfDocument"],
+  });
+
+  return true;
+}
+
+export async function scrollBottom(targetId, options = {}) {
+  await pressKey(targetId, "ArrowDown", "ArrowDown", {
+    ...options,
+    keyEventWith: "cmd",
+    keyEventCommands: ["ScrollToEndOfDocument"],
+  });
+
+  return true;
+}
+
+export async function copy(targetId, options = {}) {
+  await pressKey(targetId, "c", "KeyC", {
+    ...options,
+    keyEventWith: "cmd",
+    keyEventCommands: ["Copy"],
+  });
+
+  return true;
+}
+
+export async function paste(targetId, options = {}) {
   await pressKey(targetId, "v", "KeyV", {
     ...options,
-    with: "cmd",
+    keyEventWith: "cmd",
+    keyEventCommands: ["Paste"],
   });
+
+  return true;
 }
 
-export async function selectAll(targetId, selector, options = {}) {
-  const { Input } = await getClient(targetId, options);
-
-  // await Input.dispatchKeyEvent({
-  //   type: "rawKeyDown",
-  //   text: "你好",
-  // });
-
-  // await Input.dispatchKeyEvent({
-  //   type: "rawKeyDown",
-  //   commands: ["Delete"],
-  // });
-
-  await Input.dispatchKeyEvent({
-    type: "keyDown",
-
-    commands: ["InsertText"],
-    text: "你",
+export async function select(targetId, options = {}) {
+  await pressKey(targetId, "a", "KeyA", {
+    ...options,
+    keyEventWith: "cmd",
+    keyEventCommands: ["SelectAll"],
   });
+
+  return true;
+}
+
+export async function clear(targetId, options = {}) {
+  await select(targetId, options);
+
+  await sleep(random(40, 120));
+  await keyDelete(targetId, options);
+
+  return true;
 }
 
 /**
  * ----------------------------------------------------------------------------
- * Human Keyboard Actions
+ * Text Input
  * ----------------------------------------------------------------------------
  */
 
-/**
- * ----------------------------------------------------------------------------
- * Text Editing
- * ----------------------------------------------------------------------------
- */
+async function writeText(targetId, text, options = {}) {
+  const value = String(text);
+  const typeCount = Math.min(value.length, random(5, options.typeCount ?? 15));
+  const typeText = value.slice(0, typeCount);
 
-// export async function focusAtEnd(targetId, selector, options = {}) {
-//   await focus(targetId, selector, options);
+  for (const char of typeText) {
+    await pressKey(targetId, "", "", {
+      ...options,
+      keyEventText: char,
+    });
+  }
 
-//   await sleep(random(50, 130));
+  const restText = value.slice(typeCount);
 
-//   await pressShortcut(targetId, "Meta", "ArrowDown", options);
+  if (restText) {
+    await writeClipboard(restText);
+    await sleep(random(40, 120));
+    await paste(targetId, options);
+  }
 
-//   return true;
-// }
+  return true;
+}
 
-// export async function clearAll(targetId, selector, options = {}) {
-//   await focus(targetId, selector, options);
+async function newLine(targetId, options = {}) {
+  await pressKey(targetId, "", "", {
+    ...options,
+    keyEventCommands: ["InsertNewline"],
+  });
 
-//   await sleep(random(50, 130));
-//   await pressShortcut(targetId, "Meta", "a", options);
+  return true;
+}
 
-//   await sleep(random(40, 120));
-//   await pressKey(targetId, "Backspace", options);
+export async function appendText(targetId, selector, text, options = {}) {
+  await focus(targetId, selector, options);
 
-//   return true;
-// }
+  await sleep(random(40, 120));
+  await focusEnd(targetId, options);
 
-/**
- * ----------------------------------------------------------------------------
- * Typing Helpers
- * ----------------------------------------------------------------------------
- */
+  return writeText(targetId, text, options);
+}
 
-// function randomTypoChar() {
-//   const chars = "abcdefghijklmnopqrstuvwxyz0123456789".split("");
-//   return chars[random(0, chars.length - 1)];
-// }
+export async function fillText(targetId, selector, text, options = {}) {
+  await focus(targetId, selector, options);
 
-// async function makeTypo(targetId, options = {}) {
-//   const key = randomTypoChar();
+  await sleep(random(40, 120));
+  await clear(targetId, options);
 
-//   await pressKey(targetId, key, options);
+  return writeText(targetId, text, options);
+}
 
-//   await sleep(random(80, 220));
+export async function newLineText(targetId, selector, text, options = {}) {
+  await focus(targetId, selector, options);
 
-//   await pressKey(targetId, "Backspace", options);
+  await sleep(random(40, 120));
+  await focusLineEnd(targetId, options);
 
-//   await sleep(random(40, 120));
+  await sleep(random(40, 120));
+  await newLine(targetId, options);
 
-//   return true;
-// }
-
-// function splitTextByTypoIndexes(text, typoIndexes) {
-//   const result = [];
-
-//   let start = 0;
-//   for (const index of typoIndexes) {
-//     result.push(text.slice(start, index));
-
-//     start = index;
-//   }
-
-//   result.push(text.slice(start));
-
-//   return result;
-// }
-
-// /**
-//  * ----------------------------------------------------------------------------
-//  * Text Input
-//  * ----------------------------------------------------------------------------
-//  */
-
-// export async function typeText(targetId, selector, text, options = {}) {
-//   if (options.clear) {
-//     await clearAll(targetId, selector, options);
-//   } else {
-//     await focusAtEnd(targetId, selector, options);
-//   }
-
-//   const { Input } = await getClient(targetId, options);
-
-//   const value = String(text);
-
-//   const typoCount = options.typoCount ?? 2;
-//   const indexes = new Set();
-
-//   while (indexes.size < Math.min(value.length, typoCount)) {
-//     indexes.add(random(0, value.length - 1));
-//   }
-
-//   const typoIndexes = [...indexes].sort((a, b) => a - b);
-
-//   const segments = splitTextByTypoIndexes(value, typoIndexes);
-
-//   for (let i = 0; i < segments.length; i++) {
-//     const segment = segments[i];
-
-//     if (segment) {
-//       await Input.insertText({
-//         text: segment,
-//       });
-//     }
-
-//     if (i < segments.length - 1) {
-//       await makeTypo(targetId, options);
-//     }
-//   }
-
-//   return true;
-// }
-
-// async function inputTextByPaste(targetId, selector, text, options = {}) {
-//   const value = String(text);
-//   const typeNum = options.typeNum ?? 0;
-
-//   // if (typeNum > 0) {
-//   //   const headText = value.slice(0, typeNum);
-//   //   const restText = value.slice(typeNum);
-
-//   //   await typeText(targetId, selector, headText, {
-//   //     ...options,
-//   //     clear: false,
-//   //   });
-
-//   //   if (!restText) return true;
-
-//   //   await writeClipboard(restText);
-//   //   await paste(targetId, selector, options);
-
-//   //   return true;
-//   // }
-
-//   await writeClipboard(value);
-//   await paste(targetId, selector, options);
-
-//   return true;
-// }
-
-// export async function appendText(targetId, selector, text, options = {}) {
-//   await focusAtEnd(targetId, selector, options);
-//   return inputTextByPaste(targetId, selector, text, options);
-// }
-
-// export async function fillText(targetId, selector, text, options = {}) {
-//   await clearAll(targetId, selector, options);
-//   // return inputTextByPaste(targetId, selector, text, options);
-// }
+  return writeText(targetId, text, options);
+}
