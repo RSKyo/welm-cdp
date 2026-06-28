@@ -1,5 +1,11 @@
-import { ensureChrome, ensureChromePage, activateChromePage } from "../../cdp/chrome.js";
+import {
+  ensureChrome,
+  ensureChromePage,
+  activateChromePage,
+} from "../../cdp/chrome.js";
 import { waitElementAppear, waitElementDisappear } from "../../cdp/dom.js";
+import { fillText } from "../../cdp/input.js";
+import { click } from "../../cdp/mouse.js";
 
 import { log } from "../../infra/log.js";
 import { readClipboard } from "../../utils/clipboard.js";
@@ -18,55 +24,54 @@ export function sleep(ms) {
 }
 
 export async function ask(prompt, options = {}) {
+  await ensureChrome(options);
 
+  const url = options.temporaryChat
+    ? `${chatgpt_url}/?temporary-chat=true`
+    : chatgpt_url;
 
-//   await ensureChrome(options);
+  const { targetId } = await ensureChromePage(url, options);
+  await activateChromePage(targetId, options);
 
-//   const url = options.temp
-//     ? `${chatgpt_url}/?temporary-chat=true`
-//     : chatgpt_url;
-//   const { targetId } = await ensureChromePage(url, options);
+  const startTime = Date.now();
 
-//   const startTime = Date.now();
+  // 写入
+  log.progress("Preparing prompt...");
+  await fillText(targetId, TEXTAREA_SELECTOR, prompt, options);
 
-//   // 写入
-//   log.progress("Preparing prompt...");
-// await activateChromePage(targetId, options);
+  // 提交
+  log.progress("Submitting prompt...");
+  await click(targetId, SEND_BUTTON_SELECTOR, options);
 
-//   await fillText(targetId, TEXTAREA_SELECTOR, prompt, options);
+  // 等待回复
+  log.progress("Waiting for response...");
+  await waitElementAppear(targetId, STOP_BUTTON_SELECTOR, options);
+  await sleep(3000);
+  await waitElementDisappear(targetId, STOP_BUTTON_SELECTOR, options);
 
-  // // 提交
-  // log.progress("Submitting prompt...");
-  // await click(targetId, SEND_BUTTON_SELECTOR, options);
+  const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+  log.progressDone(`Query time: ${elapsed}s`);
 
-  // // 等待回复
-  // log.progress("Waiting for response...");
-  // await waitElementAppear(targetId, STOP_BUTTON_SELECTOR, options);
-  // await sleep(3000);
-  // await waitElementDisappear(targetId, STOP_BUTTON_SELECTOR, options);
+  // 复制回复
+  log.progress("Copying response...");
+  await click(targetId, COPY_BUTTON_SELECTOR, {
+    ...options,
+    nth: -1,
+  });
 
-  // // 复制回复
-  // log.progress("Copying response...");
-  // await click(targetId, COPY_BUTTON_SELECTOR, {
-  //   ...options,
-  //   nth: -1,
-  // });
+  await sleep(500);
 
-  // await sleep(500);
+  // 获取回复
+  const answer = await readClipboard(targetId, options);
 
-  // // 获取回复
-  // const answer = await readClipboard(targetId, options);
+  const lines = answer.trim().split("\n");
+  let summary = lines[0];
 
-  // const lines = answer.trim().split("\n");
-  // let summary = lines[0];
+  if (lines.length > 1) {
+    summary += "...";
+  }
 
-  // if (lines.length > 1) {
-  //   summary += "...";
-  // }
+  log.progressDone(summary);
 
-  // const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-
-  // log.progressDone(`Done (${elapsed}s): ${summary}`);
-
-  // return answer;
+  return answer;
 }
