@@ -200,7 +200,7 @@ function getElementInteractionPoint(box) {
  * ----------------------------------------------------------------------------
  */
 
-export async function mouseMove(targetId, x, y, options = {}) {
+async function mouseMove(targetId, x, y, options = {}) {
   const p1 = {
     x: mouseState.x,
     y: mouseState.y,
@@ -224,7 +224,7 @@ export async function mouseMove(targetId, x, y, options = {}) {
   return true;
 }
 
-export async function clickAt(targetId, x, y, options = {}) {
+async function clickAt(targetId, x, y, options = {}) {
   // move 到目标点（带轨迹系统）
   await mouseMove(targetId, x, y, options);
   await sleep(random(80, 220));
@@ -239,7 +239,7 @@ export async function clickAt(targetId, x, y, options = {}) {
   return true;
 }
 
-export async function doubleClickAt(targetId, x, y, options = {}) {
+async function doubleClickAt(targetId, x, y, options = {}) {
   // move 到目标点（带轨迹系统）
   await mouseMove(targetId, x, y, options);
   await sleep(random(80, 220));

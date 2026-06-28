@@ -1,5 +1,5 @@
 import { getClient } from "./client.js";
-import { focus, scrollIntoView } from "./dom.js";
+import { focus, scrollIntoView, waitEditable } from "./dom.js";
 
 import { writeClipboard } from "../utils/clipboard.js";
 
@@ -25,125 +25,57 @@ function prop(key, value) {
   return value === undefined ? {} : { [key]: value };
 }
 
-/**
- * Executes one or more browser editing commands.
- * For testing editing commands.
- *
- * Examples:
- * - Paste
- * - Copy
- * - Cut
- * - SelectAll
- * - DeleteBackward
- * - DeleteForward
- * - Undo
- * - Redo
- */
-export async function editCommand(targetId, commands, options) {
-  commands = Array.isArray(commands) ? commands : [commands];
-
-  const { Input } = await getClient(targetId, options);
-
-  await Input.dispatchKeyEvent({
-    type: "rawKeyDown",
-    commands,
-  });
-}
-
 const MODIFIER_KEYS = {
   alt: {
     key: "Alt",
     code: "AltLeft",
+    modifiers: 1,
   },
 
   ctrl: {
     key: "Control",
     code: "ControlLeft",
+    modifiers: 2,
   },
 
   meta: {
     key: "Meta",
     code: "MetaLeft",
-  },
-
-  cmd: {
-    key: "Meta",
-    code: "MetaLeft",
-  },
-
-  win: {
-    key: "Meta",
-    code: "MetaLeft",
+    modifiers: 4,
   },
 
   shift: {
     key: "Shift",
     code: "ShiftLeft",
+    modifiers: 8,
   },
 };
 
-async function pretendPress(Input, keyEventWith, type = "keyDown") {
-  if (!keyEventWith) return;
-
-  const keys = Array.isArray(keyEventWith) ? [...keyEventWith] : [keyEventWith];
-
-  if (type === "keyUp") {
-    keys.reverse();
+function resolveModifiers(modifierKeys) {
+  if (!modifierKeys) {
+    return { entries: [], modifiers: 0 };
   }
 
-  for (const key of keys) {
-    const modifier = MODIFIER_KEYS[key.toLowerCase()];
-    if (!modifier) continue;
+  const keys = Array.isArray(modifierKeys) ? modifierKeys : [modifierKeys];
 
-    await Input.dispatchKeyEvent({
-      type,
-      key: modifier.key,
-      code: modifier.code,
-    });
-
-    if (type === "keyDown") {
-      await sleep(random(20, 50));
-    } else {
-      await sleep(random(40, 120));
-    }
-  }
-}
-
-function getModifiers(keyEventWith) {
-  if (!keyEventWith) {
-    return 0;
-  }
-
-  const keys = Array.isArray(keyEventWith) ? keyEventWith : [keyEventWith];
-
+  const entries = [];
   let modifiers = 0;
 
   for (const k of keys) {
-    switch (k.toLowerCase()) {
-      case "alt":
-        modifiers |= 1;
-        break;
-      case "ctrl":
-        modifiers |= 2;
-        break;
-      case "meta":
-      case "cmd":
-      case "win":
-        modifiers |= 4;
-        break;
-      case "shift":
-        modifiers |= 8;
-        break;
-    }
+    const entry = MODIFIER_KEYS[k.toLowerCase()];
+    if (!entry) continue;
+
+    entries.push(entry);
+    modifiers |= entry.modifiers;
   }
 
-  return modifiers;
+  return { entries, modifiers };
 }
 
 async function pressKey(targetId, key, code, options = {}) {
   const { Input } = await getClient(targetId, options);
 
-  const modifiers = getModifiers(options.keyEventWith);
+  const { entries, modifiers } = resolveModifiers(options.keyEventWith);
 
   const event = {
     key,
@@ -153,7 +85,15 @@ async function pressKey(targetId, key, code, options = {}) {
     ...prop("nativeVirtualKeyCode", options.keyEventNativeVirtualKeyCode),
   };
 
-  await pretendPress(Input, options.keyEventWith, "keyDown");
+  for (const entry of entries) {
+    await Input.dispatchKeyEvent({
+      type: "keyDown",
+      key: entry.key,
+      code: entry.code,
+    });
+
+    await sleep(random(10, 30));
+  }
 
   await Input.dispatchKeyEvent({
     type: modifiers === 0 ? "keyDown" : "rawKeyDown",
@@ -162,24 +102,43 @@ async function pressKey(targetId, key, code, options = {}) {
     ...prop("commands", options.keyEventCommands),
   });
 
-  await sleep(random(20, 50));
+  await sleep(random(10, 30));
 
   await Input.dispatchKeyEvent({
     type: "keyUp",
     ...event,
   });
 
-  await sleep(random(40, 120));
+  await sleep(random(10, 40));
 
-  await pretendPress(Input, options.keyEventWith, "keyUp");
+  const reversed = [...entries].reverse();
+  for (const entry of reversed) {
+    await Input.dispatchKeyEvent({
+      type: "keyUp",
+      key: entry.key,
+      code: entry.code,
+    });
+
+    await sleep(random(10, 40));
+  }
 
   return true;
+}
+
+/**
+ * ----------------------------------------------------------------------------
+ * Key
+ * ----------------------------------------------------------------------------
+ */
+
+export async function keyAny(targetId, key, code, options = {}) {
+  await pressKey(targetId, key, code, options);
 }
 
 export async function keyEnter(targetId, options = {}) {
   await pressKey(targetId, "Enter", "Enter", {
     ...options,
-    keyEventText: "\r",
+    keyEventText: "\r\n",
   });
 }
 
@@ -197,10 +156,16 @@ export async function keyBackspace(targetId, options = {}) {
   });
 }
 
+/**
+ * ----------------------------------------------------------------------------
+ * Cursor
+ * ----------------------------------------------------------------------------
+ */
+
 export async function focusHome(targetId, options = {}) {
   await pressKey(targetId, "ArrowUp", "ArrowUp", {
     ...options,
-    keyEventWith: "cmd",
+    keyEventWith: "meta",
     keyEventCommands: ["MoveToBeginningOfDocument"],
   });
 
@@ -210,7 +175,7 @@ export async function focusHome(targetId, options = {}) {
 export async function focusEnd(targetId, options = {}) {
   await pressKey(targetId, "ArrowDown", "ArrowDown", {
     ...options,
-    keyEventWith: "cmd",
+    keyEventWith: "meta",
     keyEventCommands: ["MoveToEndOfDocument"],
   });
 
@@ -220,7 +185,7 @@ export async function focusEnd(targetId, options = {}) {
 export async function focusLineStart(targetId, options = {}) {
   await pressKey(targetId, "ArrowLeft", "ArrowLeft", {
     ...options,
-    keyEventWith: "cmd",
+    keyEventWith: "meta",
     keyEventCommands: ["MoveToBeginningOfLine"],
   });
 
@@ -230,7 +195,7 @@ export async function focusLineStart(targetId, options = {}) {
 export async function focusLineEnd(targetId, options = {}) {
   await pressKey(targetId, "ArrowRight", "ArrowRight", {
     ...options,
-    keyEventWith: "cmd",
+    keyEventWith: "meta",
     keyEventCommands: ["MoveToEndOfLine"],
   });
 
@@ -273,10 +238,16 @@ export async function focusDown(targetId, options = {}) {
   return true;
 }
 
+/**
+ * ----------------------------------------------------------------------------
+ * Scroll
+ * ----------------------------------------------------------------------------
+ */
+
 export async function scrollTop(targetId, options = {}) {
   await pressKey(targetId, "ArrowUp", "ArrowUp", {
     ...options,
-    keyEventWith: "cmd",
+    keyEventWith: "meta",
     keyEventCommands: ["ScrollToBeginningOfDocument"],
   });
 
@@ -286,17 +257,23 @@ export async function scrollTop(targetId, options = {}) {
 export async function scrollBottom(targetId, options = {}) {
   await pressKey(targetId, "ArrowDown", "ArrowDown", {
     ...options,
-    keyEventWith: "cmd",
+    keyEventWith: "meta",
     keyEventCommands: ["ScrollToEndOfDocument"],
   });
 
   return true;
 }
 
+/**
+ * ----------------------------------------------------------------------------
+ * Shortcut
+ * ----------------------------------------------------------------------------
+ */
+
 export async function copy(targetId, options = {}) {
   await pressKey(targetId, "c", "KeyC", {
     ...options,
-    keyEventWith: "cmd",
+    keyEventWith: "meta",
     keyEventCommands: ["Copy"],
   });
 
@@ -306,7 +283,7 @@ export async function copy(targetId, options = {}) {
 export async function paste(targetId, options = {}) {
   await pressKey(targetId, "v", "KeyV", {
     ...options,
-    keyEventWith: "cmd",
+    keyEventWith: "meta",
     keyEventCommands: ["Paste"],
   });
 
@@ -316,7 +293,7 @@ export async function paste(targetId, options = {}) {
 export async function select(targetId, options = {}) {
   await pressKey(targetId, "a", "KeyA", {
     ...options,
-    keyEventWith: "cmd",
+    keyEventWith: "meta",
     keyEventCommands: ["SelectAll"],
   });
 
@@ -338,16 +315,21 @@ export async function clear(targetId, options = {}) {
  * ----------------------------------------------------------------------------
  */
 
-async function writeText(targetId, text, options = {}) {
+async function textInput(targetId, text, options = {}) {
   const value = String(text);
-  const typeCount = Math.min(value.length, random(5, options.typeCount ?? 15));
-  const typeText = value.slice(0, typeCount);
+  const max = Math.min(value.length, options.typeCount ?? 15);
+  const min = Math.min(5, max);
+  const typeCount = random(min, max);
 
-  for (const char of typeText) {
-    await pressKey(targetId, "", "", {
-      ...options,
-      keyEventText: char,
-    });
+  if (typeCount > 0) {
+    const typeText = value.slice(0, typeCount);
+
+    for (const char of typeText) {
+      await pressKey(targetId, "", "", {
+        ...options,
+        keyEventText: char,
+      });
+    }
   }
 
   const restText = value.slice(typeCount);
@@ -361,41 +343,26 @@ async function writeText(targetId, text, options = {}) {
   return true;
 }
 
-async function newLine(targetId, options = {}) {
-  await pressKey(targetId, "", "", {
-    ...options,
-    keyEventCommands: ["InsertNewline"],
-  });
-
-  return true;
-}
-
 export async function appendText(targetId, selector, text, options = {}) {
+  await scrollIntoView(targetId, selector, options);
+  await waitEditable(targetId, selector, options);
+
   await focus(targetId, selector, options);
 
   await sleep(random(40, 120));
   await focusEnd(targetId, options);
 
-  return writeText(targetId, text, options);
+  return textInput(targetId, text, options);
 }
 
 export async function fillText(targetId, selector, text, options = {}) {
+  await scrollIntoView(targetId, selector, options);
+  await waitEditable(targetId, selector, options);
+
   await focus(targetId, selector, options);
 
   await sleep(random(40, 120));
   await clear(targetId, options);
 
-  return writeText(targetId, text, options);
-}
-
-export async function newLineText(targetId, selector, text, options = {}) {
-  await focus(targetId, selector, options);
-
-  await sleep(random(40, 120));
-  await focusLineEnd(targetId, options);
-
-  await sleep(random(40, 120));
-  await newLine(targetId, options);
-
-  return writeText(targetId, text, options);
+  return textInput(targetId, text, options);
 }
