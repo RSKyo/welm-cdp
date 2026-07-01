@@ -97,7 +97,7 @@ async function closeTarget(targetId, options = {}) {
 
   await CDP.Close({
     ...cdpOptions,
-    targetId,
+    id: targetId,
   });
 }
 
