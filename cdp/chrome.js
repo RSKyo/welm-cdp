@@ -318,49 +318,40 @@ async function waitLeaveAboutBlank(targetId, options = {}) {
  */
 async function waitPageReady(targetId, options = {}) {
   const cdpOptions = getCdpOptions(options);
-  const timeout = 30000;
+  const timeout = options.pageTimeout ?? 30000;
+  const interval = options.interval ?? 200;
 
   const client = await CDP({
     ...cdpOptions,
     targetId,
   });
 
-  let timer;
+  try {
+    await waitLeaveAboutBlank(targetId, options);
 
-  function cleanup(onLoad) {
-    if (timer) {
-      clearTimeout(timer);
-      timer = null;
+    const start = Date.now();
+
+    while (Date.now() - start < timeout) {
+      const result = await client.Runtime.evaluate({
+        expression: "document.readyState",
+        returnByValue: true,
+      });
+
+      const readyState = result.result?.value;
+
+      if (readyState === "interactive" || readyState === "complete") {
+        return;
+      }
+
+      const remaining = timeout - (Date.now() - start);
+      if (remaining <= 0) break;
+
+      await sleep(Math.min(interval, remaining));
     }
 
-    client.off("Page.loadEventFired", onLoad);
-  }
-
-  try {
-    await client.Page.enable();
-
-    let onLoad;
-
-    const loadPromise = new Promise((resolve, reject) => {
-      onLoad = () => {
-        cleanup(onLoad);
-        resolve();
-      };
-
-      timer = setTimeout(() => {
-        cleanup(onLoad);
-        reject(
-          new Error(
-            `Page load timeout: targetId=${targetId}, timeout=${timeout}ms`,
-          ),
-        );
-      }, timeout);
-
-      client.once("Page.loadEventFired", onLoad);
-    });
-
-    await waitLeaveAboutBlank(targetId, options);
-    await loadPromise;
+    throw new Error(
+      `Page ready timeout: targetId=${targetId}, timeout=${timeout}ms`,
+    );
   } finally {
     await client.close();
   }

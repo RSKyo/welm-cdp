@@ -15,5 +15,13 @@
   "license": "UNLICENSED",
   "dependencies": {
     "chrome-remote-interface": "^0.34.0"
+  },
+  "exports": {
+    "./chrome": "./cdp/chrome.js",
+    "./client": "./cdp/client.js",
+    "./dom": "./cdp/dom.js",
+    "./input": "./cdp/input.js",
+    "./mouse": "./cdp/mouse.js",
+    "./screenshot": "./cdp/screenshot.js"
   }
 }
