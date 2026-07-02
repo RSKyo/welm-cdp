@@ -8,7 +8,7 @@ import { fillText } from "../../cdp/input.js";
 import { click } from "../../cdp/mouse.js";
 
 import { log } from "../../infra/log.js";
-import { readClipboard } from "../../utils/clipboard.js";
+import { readClipboardText } from "../../clipboard/text.js";
 
 import {
   TEXTAREA_SELECTOR,
@@ -62,7 +62,7 @@ export async function ask(prompt, options = {}) {
   await sleep(500);
 
   // 获取回复
-  const answer = await readClipboard(targetId, options);
+  const answer = await readClipboardText(targetId, options);
 
   const lines = answer.trim().split("\n");
   let summary = lines[0];

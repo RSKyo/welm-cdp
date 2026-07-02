@@ -1,7 +1,7 @@
 import { getClient } from "./client.js";
 import { focus, scrollIntoView, waitEditable } from "./dom.js";
 
-import { writeClipboard } from "../utils/clipboard.js";
+import { writeClipboardText } from "../clipboard/text.js";
 
 /**
  * ----------------------------------------------------------------------------
@@ -335,7 +335,7 @@ async function textInput(targetId, text, options = {}) {
   const restText = value.slice(typeCount);
 
   if (restText) {
-    await writeClipboard(restText);
+    await writeClipboardText(restText);
     await sleep(random(40, 120));
     await paste(targetId, options);
   }
