@@ -94,12 +94,7 @@ export const isPlainObject = (value) => {
 
 export function assertRequired(value, fieldName = "value") {
   if (isNull(value)) {
-    throw createError(
-      ERROR_CODE.REQUIRED,
-      "{0} is required",
-      null,
-      fieldName,
-    );
+    throw createError(ERROR_CODE.REQUIRED, "{0} is required", null, fieldName);
   }
 
   return value;
@@ -155,4 +150,30 @@ export function assertHttpUrl(value, fieldName = "url") {
   }
 
   return value;
+}
+
+export function assertNonEmptyArray(value, fieldName = "value") {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw createError(
+      ERROR_CODE.INVALID,
+      "{0} must be a non-empty array",
+      null,
+      fieldName,
+    );
+  }
+
+  return value;
+}
+
+export function assertStringOrNonEmptyArray(value, fieldName = "value") {
+  if (typeof value === "string" || (Array.isArray(value) && value.length > 0)) {
+    return value;
+  }
+
+  throw createError(
+    ERROR_CODE.INVALID,
+    "{0} must be a string or a non-empty array",
+    null,
+    fieldName,
+  );
 }
