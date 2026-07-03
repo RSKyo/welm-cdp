@@ -36,7 +36,7 @@ function assertFileClipboardBin() {
 
   if (!fs.existsSync(fileClipboardBin)) {
     throw new Error(
-      `file-clipboard binary not found: ${fileClipboardBin}. Run: npm run build:file-clipboard`,
+      `file-clipboard binary not found: ${fileClipboardBin}. Run: npm run compile:file-clipboard`,
     );
   }
 

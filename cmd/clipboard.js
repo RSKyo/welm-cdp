@@ -8,29 +8,43 @@ import { readClipboardText, writeClipboardText } from "../clipboard/text.js";
 
 import { readClipboardFile, writeClipboardFile } from "../clipboard/file.js";
 
+import { readClipboardImage, writeClipboardImage } from "../clipboard/image.js";
+
 export const CLIPBOARD_COMMANDS = {
-  readClipboardText: {
+  read: {
     handler: cmd_readClipboardText,
     usage: "clipboard read",
     description: "Read text from clipboard",
   },
 
-  writeClipboardText: {
+  write: {
     handler: cmd_writeClipboardText,
     usage: "clipboard write <text>",
     description: "Write text to clipboard",
   },
 
-  readClipboardFile: {
+  "read-file": {
     handler: cmd_readClipboardFile,
     usage: "clipboard read-file",
     description: "Read file(s) from clipboard",
   },
 
-  writeClipboardFile: {
+  "write-file": {
     handler: cmd_writeClipboardFile,
     usage: "clipboard write-file <file1> [file2 ...]",
     description: "Write file(s) to clipboard",
+  },
+
+  "read-image": {
+    handler: cmd_readClipboardImage,
+    usage: "clipboard read-image <outputPath>",
+    description: "Read image from clipboard",
+  },
+
+  "write-image": {
+    handler: cmd_writeClipboardImage,
+    usage: "clipboard write-image <imagePath>",
+    description: "Write image to clipboard",
   },
 };
 
@@ -76,4 +90,26 @@ export async function cmd_writeClipboardFile({ argv, options } = {}) {
   }
 
   return writtenFiles;
+}
+
+export async function cmd_readClipboardImage({ argv, options } = {}) {
+  const [outputPath] = argv;
+  assertNonBlank(outputPath, "argv[0]");
+
+  const image = await readClipboardImage(outputPath, options);
+
+  log.info(`Read image from clipboard: ${outputPath}`, options);
+
+  return image;
+}
+
+export async function cmd_writeClipboardImage({ argv, options } = {}) {
+  const [imagePath] = argv;
+  assertNonBlank(imagePath, "argv[0]");
+
+  await writeClipboardImage(imagePath, options);
+
+  log.info(`Wrote image to clipboard: ${imagePath}`, options);
+
+  return true;
 }

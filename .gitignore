@@ -31,3 +31,6 @@ coverage/
 # chrome profile
 chrome-profile/
 user-data-dir/
+
+# clipboard
+# clipboard/*.bin
