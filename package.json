@@ -9,8 +9,8 @@
   "scripts": {
     "start": "node ./cli.js",
     "test": "node --test",
-    "compile:file-clipboard": "swiftc clipboard/file-clipboard.swift -o clipboard/file-clipboard.bin",
-    "compile:image-clipboard": "swiftc clipboard/image-clipboard.swift -o clipboard/image-clipboard.bin",
+    "compile:file-clipboard": "swiftc local/file-clipboard.swift -o local/file-clipboard.bin",
+    "compile:image-clipboard": "swiftc local/image-clipboard.swift -o local/image-clipboard.bin",
     "compile:clipboard": "npm run compile:file-clipboard && npm run compile:image-clipboard"
   },
   "keywords": [],
@@ -21,10 +21,14 @@
   },
   "exports": {
     "./chrome": "./cdp/chrome.js",
-    "./client": "./cdp/client.js",
+    "./runtime": "./cdp/runtime.js",
     "./dom": "./cdp/dom.js",
     "./input": "./cdp/input.js",
     "./mouse": "./cdp/mouse.js",
-    "./screenshot": "./cdp/screenshot.js"
+    "./screenshot": "./cdp/screenshot.js",
+    "./lifecycle": "./cdp/lifecycle.js",
+
+    "./clipboard": "./local/clipboard.js",
+    "./file": "./local/file.js"
   }
 }

@@ -19,6 +19,32 @@ const IMAGE_EXTS = new Set([
   ".heic",
 ]);
 
+// #region Public API
+
+export async function writeClipboardImage(filePath) {
+  const imagePath = assertImageFile(filePath);
+
+  if (process.platform === "darwin") {
+    return await writeClipboardImageDarwin(imagePath);
+  }
+
+  throw new Error(`Unsupported platform: ${process.platform}`);
+}
+
+export async function readClipboardImage(outputPath) {
+  const imagePath = assertOutputPath(outputPath);
+
+  if (process.platform === "darwin") {
+    return await readClipboardImageDarwin(imagePath);
+  }
+
+  throw new Error(`Unsupported platform: ${process.platform}`);
+}
+
+// #endregion
+
+// #region Private helpers
+
 function assertImageFile(filePath) {
   if (!filePath || typeof filePath !== "string") {
     throw new Error("image file must be a non-empty string");
@@ -89,22 +115,4 @@ async function readClipboardImageDarwin(outputPath) {
   }
 }
 
-export async function writeClipboardImage(filePath) {
-  const imagePath = assertImageFile(filePath);
-
-  if (process.platform === "darwin") {
-    return await writeClipboardImageDarwin(imagePath);
-  }
-
-  throw new Error(`Unsupported platform: ${process.platform}`);
-}
-
-export async function readClipboardImage(outputPath) {
-  const imagePath = assertOutputPath(outputPath);
-
-  if (process.platform === "darwin") {
-    return await readClipboardImageDarwin(imagePath);
-  }
-
-  throw new Error(`Unsupported platform: ${process.platform}`);
-}
+// #endregion

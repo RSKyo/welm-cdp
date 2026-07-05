@@ -9,6 +9,38 @@ const __dirname = path.dirname(__filename);
 
 const execFileAsync = promisify(execFile);
 
+// #region Public API
+
+export async function readClipboardFile() {
+  if (process.platform === "darwin") {
+    return await readClipboardFileDarwin();
+  }
+
+  if (process.platform === "win32") {
+    return await readClipboardFileWin32();
+  }
+
+  throw new Error(`Unsupported platform: ${process.platform}`);
+}
+
+export async function writeClipboardFile(file) {
+  const files = toAbsolutePaths(assertFilePaths(file));
+
+  if (process.platform === "darwin") {
+    return await writeClipboardFileDarwin(files);
+  }
+
+  if (process.platform === "win32") {
+    return await writeClipboardFileWin32(files);
+  }
+
+  throw new Error(`Unsupported platform: ${process.platform}`);
+}
+
+// #endregion
+
+// #region Private helpers
+
 function assertFilePaths(file) {
   const files = Array.isArray(file) ? file : [file];
 
@@ -156,28 +188,4 @@ foreach ($file in $args) {
   }
 }
 
-export async function readClipboardFile() {
-  if (process.platform === "darwin") {
-    return await readClipboardFileDarwin();
-  }
-
-  if (process.platform === "win32") {
-    return await readClipboardFileWin32();
-  }
-
-  throw new Error(`Unsupported platform: ${process.platform}`);
-}
-
-export async function writeClipboardFile(file) {
-  const files = toAbsolutePaths(assertFilePaths(file));
-
-  if (process.platform === "darwin") {
-    return await writeClipboardFileDarwin(files);
-  }
-
-  if (process.platform === "win32") {
-    return await writeClipboardFileWin32(files);
-  }
-
-  throw new Error(`Unsupported platform: ${process.platform}`);
-}
+// #endregion

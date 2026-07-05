@@ -1,14 +1,14 @@
 import { log } from "../infra/log.js";
 import {
-  assertNonBlank,
-  assertStringOrNonEmptyArray,
-} from "../infra/validate.js";
+  assertNonBlankString,
+  assertNonBlankStringOrNonEmptyArray,
+} from "../infra/assert.js";
 
-import { readClipboardText, writeClipboardText } from "../clipboard/text.js";
+import { readClipboardText, writeClipboardText } from "../local/text-clipboard.js";
 
-import { readClipboardFile, writeClipboardFile } from "../clipboard/file.js";
+import { readClipboardFile, writeClipboardFile } from "../local/file-clipboard.js";
 
-import { readClipboardImage, writeClipboardImage } from "../clipboard/image.js";
+import { readClipboardImage, writeClipboardImage } from "../local/image-clipboard.js";
 
 export const CLIPBOARD_COMMANDS = {
   read: {
@@ -58,7 +58,7 @@ export async function cmd_readClipboardText({ argv, options } = {}) {
 
 export async function cmd_writeClipboardText({ argv, options } = {}) {
   const [text] = argv;
-  assertNonBlank(text, "argv[0]");
+  assertNonBlankString(text, "argv[0]");
 
   await writeClipboardText(text, options);
 
@@ -80,7 +80,7 @@ export async function cmd_readClipboardFile({ argv, options } = {}) {
 
 export async function cmd_writeClipboardFile({ argv, options } = {}) {
   const [files] = argv;
-  assertStringOrNonEmptyArray(files, "argv[0]");
+  assertNonBlankStringOrNonEmptyArray(files, "argv[0]");
 
   const writtenFiles = await writeClipboardFile(files, options);
 
@@ -94,7 +94,7 @@ export async function cmd_writeClipboardFile({ argv, options } = {}) {
 
 export async function cmd_readClipboardImage({ argv, options } = {}) {
   const [outputPath] = argv;
-  assertNonBlank(outputPath, "argv[0]");
+  assertNonBlankString(outputPath, "argv[0]");
 
   const image = await readClipboardImage(outputPath, options);
 
@@ -105,7 +105,7 @@ export async function cmd_readClipboardImage({ argv, options } = {}) {
 
 export async function cmd_writeClipboardImage({ argv, options } = {}) {
   const [imagePath] = argv;
-  assertNonBlank(imagePath, "argv[0]");
+  assertNonBlankString(imagePath, "argv[0]");
 
   await writeClipboardImage(imagePath, options);
 

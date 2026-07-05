@@ -2,7 +2,7 @@
 
 import { run } from "./infra/runner.js";
 import { resolveCommand } from "./infra/cmd.js";
-import { closeAllClients } from "./cdp/client.js";
+import { closeCdpClients } from "./cdp/lifecycle.js";
 
 import { TEST_COMMANDS } from "./cmd/test.js";
 import { CHROME_COMMANDS } from "./cmd/chrome.js";
@@ -28,6 +28,6 @@ run(
   {
     json,
     stack,
-    cleanup: closeAllClients,
+    cleanup: closeCdpClients,
   },
 );

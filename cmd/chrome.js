@@ -1,5 +1,5 @@
 import { log } from "../infra/log.js";
-import { assertNonBlank, assertHttpUrl } from "../infra/validate.js";
+import { assertNonBlankString, assertHttpUrl } from "../infra/assert.js";
 import {
   ensureChrome,
   listChromePages,
@@ -131,7 +131,7 @@ export async function cmd_listChromePages({ options } = {}) {
  */
 export async function cmd_getChromePage({ argv, options } = {}) {
   const [targetId] = argv;
-  assertNonBlank(targetId, "targetId");
+  assertNonBlankString(targetId, "targetId");
 
   const target = await getChromePage(targetId, options);
 
@@ -145,7 +145,7 @@ export async function cmd_getChromePage({ argv, options } = {}) {
  */
 export async function cmd_findChromePage({ argv, options } = {}) {
   const [keyword] = argv;
-  assertNonBlank(keyword, "keyword");
+  assertNonBlankString(keyword, "keyword");
 
   const target = await findChromePage(keyword, options);
 
@@ -163,7 +163,7 @@ export async function cmd_findChromePage({ argv, options } = {}) {
  */
 export async function cmd_activateChromePage({ argv, options } = {}) {
   const [targetId] = argv;
-  assertNonBlank(targetId, "targetId");
+  assertNonBlankString(targetId, "targetId");
 
   const target = await activateChromePage(targetId, options);
 
@@ -205,7 +205,7 @@ export async function cmd_ensureChromePage({ argv, options } = {}) {
  */
 export async function cmd_closeChromePage({ argv, options } = {}) {
   const [targetId] = argv;
-  assertNonBlank(targetId, "targetId");
+  assertNonBlankString(targetId, "targetId");
 
   const target = await closeChromePage(targetId, options);
 
