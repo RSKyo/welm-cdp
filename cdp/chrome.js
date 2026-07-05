@@ -218,14 +218,14 @@ export async function ensureChrome(options = {}) {
   if (!(await isChromeReady(options))) {
     const startTime = Date.now();
 
-    options.reporter?.progress(`Starting Chrome...`, options);
+    options.reporter?.progress?.(`Starting Chrome...`, options);
     launchInfo = await launchChrome(options);
 
-    options.reporter?.progress(`Waiting for Chrome CDP service...`, options);
+    options.reporter?.progress?.(`Waiting for Chrome CDP service...`, options);
     await waitChromeReady(options);
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    options.reporter?.progressDone(`Chrome is ready (${elapsed}s)`, options);
+    options.reporter?.progressDone?.(`Chrome is ready (${elapsed}s)`, options);
 
     return launchInfo;
   }
@@ -360,12 +360,12 @@ async function waitPageReady(targetId, options = {}) {
 export async function openChromePage(url, options = {}) {
   const startTime = Date.now();
 
-  options.reporter?.progress("Opening page...", options);
+  options.reporter?.progress?.("Opening page...", options);
 
   let target = await openTarget(url, options);
   const { targetId } = target;
 
-  options.reporter?.progress("Waiting for page...", options);
+  options.reporter?.progress?.("Waiting for page...", options);
 
   await waitPageReady(targetId, options);
 
@@ -374,7 +374,7 @@ export async function openChromePage(url, options = {}) {
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
 
-  options.reporter?.progressDone(`Page is ready (${elapsed}s)`, options);
+  options.reporter?.progressDone?.(`Page is ready (${elapsed}s)`, options);
 
   return target;
 }

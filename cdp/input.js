@@ -1,7 +1,7 @@
 import { getClient } from "./client.js";
 import { focus, scrollIntoView, waitEditable } from "./dom.js";
 
-import { writeClipboardText } from "../local/clipboard/clipboard.js";
+import { writeClipboardText } from "../local/clipboard.js";
 
 /**
  * ----------------------------------------------------------------------------
