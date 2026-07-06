@@ -1,4 +1,3 @@
-import { log } from "../infra/log.js";
 import { assertNonBlankString, assertHttpUrl } from "../infra/assert.js";
 import {
   ensureChrome,
@@ -98,12 +97,20 @@ export async function cmd_ensureChrome({ options } = {}) {
   const launchInfo = await ensureChrome(options);
 
   if (launchInfo.launched) {
-    log.info(
+    const { reporter } = options;
+
+    reporter?.info?.(
       `CDP endpoint: http://${launchInfo.host}:${launchInfo.port}`,
       options,
     );
-    log.info(`Using Chrome executable: ${launchInfo.chromeBin}`, options);
-    log.info(`Using Chrome user data dir: ${launchInfo.userDataDir}`, options);
+    reporter?.info?.(
+      `Using Chrome executable: ${launchInfo.chromeBin}`,
+      options,
+    );
+    reporter?.info?.(
+      `Using Chrome user data dir: ${launchInfo.userDataDir}`,
+      options,
+    );
   }
 
   return launchInfo;
@@ -115,9 +122,11 @@ export async function cmd_ensureChrome({ options } = {}) {
 export async function cmd_listChromePages({ options } = {}) {
   const targets = await listChromePages(options);
 
+  const { reporter } = options;
+
   const total = targets.length;
   targets.forEach((target, index) => {
-    log.info(
+    reporter?.info?.(
       `(${index + 1}/${total}) ${target.targetId} ${target.title}`,
       options,
     );
@@ -135,7 +144,8 @@ export async function cmd_getChromePage({ argv, options } = {}) {
 
   const target = await getChromePage(targetId, options);
 
-  log.info(`${target.targetId} ${target.title}`, options);
+  const { reporter } = options;
+  reporter?.info?.(`${target.targetId} ${target.title}`, options);
 
   return target;
 }
@@ -149,10 +159,15 @@ export async function cmd_findChromePage({ argv, options } = {}) {
 
   const target = await findChromePage(keyword, options);
 
+  const { reporter } = options;
+
   if (target) {
-    log.info(`${target.targetId} ${target.title}`, options);
+    reporter?.info?.(`${target.targetId} ${target.title}`, options);
   } else {
-    log.warn(`No matching Chrome page found for keyword: ${keyword}`, options);
+    reporter?.warn?.(
+      `No matching Chrome page found for keyword: ${keyword}`,
+      options,
+    );
   }
 
   return target;
@@ -167,7 +182,8 @@ export async function cmd_activateChromePage({ argv, options } = {}) {
 
   const target = await activateChromePage(targetId, options);
 
-  log.info(`${target.targetId} ${target.title}`, options);
+  const { reporter } = options;
+  reporter?.info?.(`${target.targetId} ${target.title}`, options);
 
   return target;
 }
@@ -181,7 +197,8 @@ export async function cmd_openChromePage({ argv, options } = {}) {
 
   const target = await openChromePage(url, options);
 
-  log.info(`${target.targetId} ${target.title}`, options);
+  const { reporter } = options;
+  reporter?.info?.(`${target.targetId} ${target.title}`, options);
 
   return target;
 }
@@ -195,7 +212,8 @@ export async function cmd_ensureChromePage({ argv, options } = {}) {
 
   const target = await ensureChromePage(url, options);
 
-  log.info(`${target.targetId} ${target.title}`, options);
+  const { reporter } = options;
+  reporter?.info?.(`${target.targetId} ${target.title}`, options);
 
   return target;
 }
@@ -209,7 +227,8 @@ export async function cmd_closeChromePage({ argv, options } = {}) {
 
   const target = await closeChromePage(targetId, options);
 
-  log.info(`${target.targetId} ${target.title}`, options);
+  const { reporter } = options;
+  reporter?.info?.(`${target.targetId} ${target.title}`, options);
 
   return target;
 }

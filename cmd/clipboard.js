@@ -1,4 +1,3 @@
-import { log } from "../infra/log.js";
 import {
   assertNonBlankString,
   assertNonBlankStringOrNonEmptyArray,
@@ -51,7 +50,8 @@ export const CLIPBOARD_COMMANDS = {
 export async function cmd_readClipboardText({ argv, options } = {}) {
   const text = await readClipboardText(options);
 
-  log.info(text, options);
+  const { reporter } = options;
+  reporter?.info?.(text, options);
 
   return text;
 }
@@ -62,7 +62,8 @@ export async function cmd_writeClipboardText({ argv, options } = {}) {
 
   await writeClipboardText(text, options);
 
-  log.info(`Wrote text to clipboard`, options);
+  const { reporter } = options;
+  reporter?.info?.(`Wrote text to clipboard`, options);
 
   return true;
 }
@@ -70,9 +71,10 @@ export async function cmd_writeClipboardText({ argv, options } = {}) {
 export async function cmd_readClipboardFile({ argv, options } = {}) {
   const files = await readClipboardFile(options);
 
-  log.info(`Read ${files.length} file(s) from clipboard`, options);
+  const { reporter } = options;
+  reporter?.info?.(`Read ${files.length} file(s) from clipboard`, options);
   for (const file of files) {
-    log.info(`Read file from clipboard: ${file}`, options);
+    reporter?.info?.(`Read file from clipboard: ${file}`, options);
   }
 
   return files;
@@ -84,9 +86,10 @@ export async function cmd_writeClipboardFile({ argv, options } = {}) {
 
   const writtenFiles = await writeClipboardFile(files, options);
 
-  log.info(`Wrote ${writtenFiles.length} file(s) to clipboard`, options);
+  const { reporter } = options;
+  reporter?.info?.(`Wrote ${writtenFiles.length} file(s) to clipboard`, options);
   for (const file of writtenFiles) {
-    log.info(`Wrote file to clipboard: ${file}`, options);
+    reporter?.info?.(`Wrote file to clipboard: ${file}`, options);
   }
 
   return writtenFiles;
@@ -98,7 +101,8 @@ export async function cmd_readClipboardImage({ argv, options } = {}) {
 
   const image = await readClipboardImage(outputPath, options);
 
-  log.info(`Read image from clipboard: ${outputPath}`, options);
+  const { reporter } = options;
+  reporter?.info?.(`Read image from clipboard: ${outputPath}`, options);
 
   return image;
 }
@@ -109,7 +113,8 @@ export async function cmd_writeClipboardImage({ argv, options } = {}) {
 
   await writeClipboardImage(imagePath, options);
 
-  log.info(`Wrote image to clipboard: ${imagePath}`, options);
+  const { reporter } = options;
+  reporter?.info?.(`Wrote image to clipboard: ${imagePath}`, options);
 
   return true;
 }
