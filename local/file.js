@@ -38,6 +38,48 @@ import path from "node:path";
 // #region Public API
 
 // -----------------------------------------------------------------------------
+// File existence and type checks
+// -----------------------------------------------------------------------------
+
+export function exists(filePath) {
+  if (!filePath || typeof filePath !== "string") {
+    return false;
+  }
+
+  return fs.existsSync(filePath);
+}
+
+export function isFile(filePath) {
+  if (!filePath || typeof filePath !== "string") {
+    return false;
+  }
+
+  try {
+    const stat = fs.statSync(filePath);
+    return stat.isFile();
+  } catch (err) {
+    return false;
+  }
+}
+
+export function isDirectory(dirPath) {
+  if (!dirPath || typeof dirPath !== "string") {
+    return false;
+  }
+
+  try {
+    const stat = fs.statSync(dirPath);
+    return stat.isDirectory();
+  } catch (err) {
+    return false;
+  }
+}
+
+export function joinPath(...segments) {
+  return path.join(...segments);
+}
+
+// -----------------------------------------------------------------------------
 // Scan files and directories
 // -----------------------------------------------------------------------------
 
@@ -46,20 +88,29 @@ export function scanPath(input, options = {}) {
     return [];
   }
 
-  options = normalizeScanOptions(options);
+  const includeHidden = options.includeHidden === true;
+  const includeExts = normalizeExts(options.includeExts);
+  const excludeExts = normalizeExts(options.excludeExts);
 
-  if (!options.includeHidden && isHiddenPath(input)) {
+  const scanOptions = {
+    ...options,
+    includeHidden,
+    includeExts,
+    excludeExts,
+  };
+
+  if (!includeHidden && isHiddenPath(input)) {
     return [];
   }
 
   const stat = fs.statSync(input);
 
   if (stat.isDirectory()) {
-    return scanDir(input, options);
+    return scanDir(input, scanOptions);
   }
 
   if (stat.isFile()) {
-    if (!matchFile(input, options)) {
+    if (!matchFile(input, scanOptions)) {
       return [];
     }
 
@@ -185,15 +236,6 @@ function scanDir(dir, options = {}) {
   return result;
 }
 
-function normalizeScanOptions(options = {}) {
-  return {
-    ...options,
-    includeHidden: options.includeHidden === true,
-    includeExts: normalizeExts(options.includeExts),
-    excludeExts: normalizeExts(options.excludeExts),
-  };
-}
-
 function normalizeExts(exts) {
   if (!exts) {
     return null;
@@ -240,12 +282,12 @@ function createFileEntry(filePath) {
    *   base: "song.mp3",                     // File name with extension
    *   ext: ".mp3",                          // File extension, including the dot
    *   name: "song",                         // File name without extension
-   *   path: "/Users/xxx/Music/song.mp3"     // Full file path
+   *   filePath: "/Users/xxx/Music/song.mp3" // Full file path
    * }
    */
   return {
     ...parsed,
-    path: filePath,
+    filePath,
   };
 }
 
