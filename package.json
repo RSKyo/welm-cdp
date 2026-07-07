@@ -27,10 +27,8 @@
     "./mouse": "./cdp/mouse.js",
     "./screenshot": "./cdp/screenshot.js",
     "./lifecycle": "./cdp/lifecycle.js",
-
-    "./clipboard/text": "./clipboard/text-clipboard.js",
-    "./clipboard/image": "./clipboard/image-clipboard.js",
-    "./clipboard/file": "./clipboard/file-clipboard.js",
+    
+    "./clipboard": "./clipboard/index.js",
     "./fs": "./fs/index.js"
   }
 }

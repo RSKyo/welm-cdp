@@ -1,7 +1,7 @@
 // -----------------------------------------------------------------------------
 // fs/path
 // -----------------------------------------------------------------------------
-// Local path utilities.
+// Local path and directory utilities.
 //
 // Public API:
 // - exists(filePath)
@@ -9,12 +9,13 @@
 // - isDirectory(dirPath)
 // - joinPath(...segments)
 // - ensureDir(dirPath)
+// - removeDir(dirPath)
 //
 // Design:
 // - All methods are synchronous.
-// - Invalid empty/non-string paths return false for check methods.
-// - ensureDir throws on invalid input.
-// - ensureDir creates parent directories recursively.
+// - Check methods return false for invalid empty/non-string paths.
+// - ensureDir creates a directory recursively and succeeds if it already exists.
+// - removeDir removes a directory recursively and succeeds if it does not exist.
 //
 // Version: 0.1.0
 // Last modified: 2026-07-07
@@ -67,4 +68,38 @@ export function isDirectory(dirPath) {
 
 export function joinPath(...segments) {
   return path.join(...segments);
+}
+
+// -----------------------------------------------------------------------------
+// Directory helpers
+// -----------------------------------------------------------------------------
+
+export function ensureDir(dirPath) {
+  assertDirPath(dirPath);
+
+  fs.mkdirSync(dirPath, { recursive: true });
+
+  return true;
+}
+
+export function removeDir(dirPath) {
+  assertDirPath(dirPath);
+
+  if (!fs.existsSync(dirPath)) {
+    return true;
+  }
+
+  fs.rmSync(dirPath, { recursive: true, force: true });
+
+  return true;
+}
+
+// -----------------------------------------------------------------------------
+// Private helpers
+// -----------------------------------------------------------------------------
+
+function assertDirPath(dirPath) {
+  if (typeof dirPath !== "string" || dirPath.length === 0) {
+    throw new Error("invalid dir path");
+  }
 }
