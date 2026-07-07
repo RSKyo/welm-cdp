@@ -28,7 +28,9 @@
     "./screenshot": "./cdp/screenshot.js",
     "./lifecycle": "./cdp/lifecycle.js",
 
-    "./clipboard": "./local/clipboard.js",
-    "./file": "./local/file.js"
+    "./clipboard/text": "./clipboard/text-clipboard.js",
+    "./clipboard/image": "./clipboard/image-clipboard.js",
+    "./clipboard/file": "./clipboard/file-clipboard.js",
+    "./fs": "./fs/index.js"
   }
 }
