@@ -1,13 +1,11 @@
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
+
+import { runProgram, runPowerShell } from "./process.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-const execFileAsync = promisify(execFile);
 
 const IMAGE_EXTS = new Set([
   ".png",
@@ -19,23 +17,34 @@ const IMAGE_EXTS = new Set([
   ".heic",
 ]);
 
+// Native binaries
+const clipboardBin = assertClipboardBin();
+
 // #region Public API
 
-export async function writeClipboardImage(filePath) {
-  const imagePath = assertImageFile(filePath);
+export async function readClipboardImage(imagePath) {
+  imagePath = assertImagePath(imagePath);
 
   if (process.platform === "darwin") {
-    return await writeClipboardImageDarwin(imagePath);
+    return await readClipboardImageDarwin(imagePath);
+  }
+
+  if (process.platform === "win32") {
+    return await readClipboardImageWin32(imagePath);
   }
 
   throw new Error(`Unsupported platform: ${process.platform}`);
 }
 
-export async function readClipboardImage(outputPath) {
-  const imagePath = assertOutputPath(outputPath);
+export async function writeClipboardImage(imagePath) {
+  imagePath = assertImageFile(imagePath);
 
   if (process.platform === "darwin") {
-    return await readClipboardImageDarwin(imagePath);
+    return await writeClipboardImageDarwin(imagePath);
+  }
+
+  if (process.platform === "win32") {
+    return await writeClipboardImageWin32(imagePath);
   }
 
   throw new Error(`Unsupported platform: ${process.platform}`);
@@ -45,49 +54,71 @@ export async function readClipboardImage(outputPath) {
 
 // #region Private helpers
 
-function assertImageFile(filePath) {
-  if (!filePath || typeof filePath !== "string") {
+function assertImageFile(imagePath) {
+  if (!imagePath || typeof imagePath !== "string") {
     throw new Error("image file must be a non-empty string");
   }
 
-  if (!fs.existsSync(filePath)) {
-    throw new Error(`image file not found: ${filePath}`);
+  if (!fs.existsSync(imagePath)) {
+    throw new Error(`image file not found: ${imagePath}`);
   }
 
-  const ext = path.extname(filePath).toLowerCase();
+  const imageExt = path.extname(imagePath).toLowerCase();
 
-  if (!IMAGE_EXTS.has(ext)) {
-    throw new Error(`unsupported image format: ${ext}`);
+  if (!IMAGE_EXTS.has(imageExt)) {
+    throw new Error(`unsupported image format: ${imageExt}`);
   }
 
-  return path.resolve(filePath);
+  return path.resolve(imagePath);
 }
 
-function assertOutputPath(outputPath) {
-  if (!outputPath || typeof outputPath !== "string") {
-    throw new Error("output path must be a non-empty string");
+function assertImagePath(imagePath) {
+  if (!imagePath || typeof imagePath !== "string") {
+    throw new Error("image path must be a non-empty string");
   }
 
-  return path.resolve(outputPath);
+  imagePath = path.resolve(imagePath);
+
+  if (path.extname(imagePath).toLowerCase() !== ".png") {
+    imagePath += ".png";
+  }
+
+  return imagePath;
 }
 
-function assertImageClipboardBin() {
-  const imageClipboardBin = path.join(__dirname, "image-clipboard.bin");
+function assertClipboardBin() {
+  const clipboardBin = path.join(__dirname, "image-clipboard.bin");
 
-  if (!fs.existsSync(imageClipboardBin)) {
+  if (!fs.existsSync(clipboardBin)) {
     throw new Error(
-      `image-clipboard binary not found: ${imageClipboardBin}. Run: npm run compile:image-clipboard`,
+      `image-clipboard binary not found: ${clipboardBin}. Run: npm run compile:image-clipboard`,
     );
   }
 
-  return imageClipboardBin;
+  return clipboardBin;
+}
+
+// #endregion
+
+// #region macOS helpers
+
+async function readClipboardImageDarwin(imagePath) {
+  try {
+    await runProgram(clipboardBin, "read", imagePath);
+    return imagePath;
+  } catch (error) {
+    const message =
+      error.stderr?.trim() ||
+      error.message ||
+      "failed to read image from clipboard";
+
+    throw new Error(`readClipboardImage failed: ${message}`);
+  }
 }
 
 async function writeClipboardImageDarwin(imagePath) {
-  const imageClipboardBin = assertImageClipboardBin();
-
   try {
-    await execFileAsync(imageClipboardBin, ["write", imagePath]);
+    await runProgram(clipboardBin, "write", imagePath);
     return imagePath;
   } catch (error) {
     const message =
@@ -99,12 +130,35 @@ async function writeClipboardImageDarwin(imagePath) {
   }
 }
 
-async function readClipboardImageDarwin(outputPath) {
-  const imageClipboardBin = assertImageClipboardBin();
+// #endregion
+
+// #region Windows helpers
+
+async function readClipboardImageWin32(imagePath) {
+  const script = `
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+
+if (-not [System.Windows.Forms.Clipboard]::ContainsImage()) {
+  throw "clipboard does not contain image"
+}
+
+$image = [System.Windows.Forms.Clipboard]::GetImage()
+
+try {
+  $image.Save(
+    $args[0],
+    [System.Drawing.Imaging.ImageFormat]::Png
+  )
+}
+finally {
+  $image.Dispose()
+}
+`;
 
   try {
-    await execFileAsync(imageClipboardBin, ["read", outputPath]);
-    return outputPath;
+    await runPowerShell(script, imagePath);
+    return imagePath;
   } catch (error) {
     const message =
       error.stderr?.trim() ||
@@ -112,6 +166,34 @@ async function readClipboardImageDarwin(outputPath) {
       "failed to read image from clipboard";
 
     throw new Error(`readClipboardImage failed: ${message}`);
+  }
+}
+
+async function writeClipboardImageWin32(imagePath) {
+  const script = `
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+
+$image = [System.Drawing.Image]::FromFile($args[0])
+
+try {
+  [System.Windows.Forms.Clipboard]::SetImage($image)
+}
+finally {
+  $image.Dispose()
+}
+`;
+
+  try {
+    await runPowerShell(script, imagePath);
+    return imagePath;
+  } catch (error) {
+    const message =
+      error.stderr?.trim() ||
+      error.message ||
+      "failed to write image to clipboard";
+
+    throw new Error(`writeClipboardImage failed: ${message}`);
   }
 }
 

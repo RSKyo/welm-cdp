@@ -1,13 +1,14 @@
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
+
+import { runProgram, runPowerShell } from "./process.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const execFileAsync = promisify(execFile);
+// Native binaries
+const clipboardBin = assertClipboardBin();
 
 // #region Public API
 
@@ -42,13 +43,13 @@ export async function writeClipboardFile(file) {
 // #region Private helpers
 
 function assertFilePaths(file) {
-  const files = Array.isArray(file) ? file : [file];
+  const filePaths = Array.isArray(file) ? file : [file];
 
-  if (files.length === 0) {
+  if (filePaths.length === 0) {
     throw new Error("file cannot be empty");
   }
 
-  for (const filePath of files) {
+  for (const filePath of filePaths) {
     if (!filePath || typeof filePath !== "string") {
       throw new Error(
         "file must be a non-empty string or an array of non-empty strings",
@@ -60,48 +61,28 @@ function assertFilePaths(file) {
     }
   }
 
-  return files;
+  return filePaths;
 }
 
-function assertFileClipboardBin() {
-  const fileClipboardBin = path.join(__dirname, "file-clipboard.bin");
+function assertClipboardBin() {
+  const clipboardBin = path.join(__dirname, "file-clipboard.bin");
 
-  if (!fs.existsSync(fileClipboardBin)) {
+  if (!fs.existsSync(clipboardBin)) {
     throw new Error(
-      `file-clipboard binary not found: ${fileClipboardBin}. Run: npm run compile:file-clipboard`,
+      `file-clipboard binary not found: ${clipboardBin}. Run: npm run compile:file-clipboard`,
     );
   }
 
-  return fileClipboardBin;
+  return clipboardBin;
 }
 
 function toAbsolutePaths(files) {
-  return files.map((file) => path.resolve(file));
-}
-
-async function runPowerShell(script, args = []) {
-  try {
-    return await execFileAsync("powershell.exe", [
-      "-NoProfile",
-      "-STA",
-      "-Command",
-      script,
-      ...args,
-    ]);
-  } catch (error) {
-    if (error.code === "ENOENT") {
-      throw new Error("powershell.exe not found");
-    }
-
-    throw error;
-  }
+  return files.map((filePath) => path.resolve(filePath));
 }
 
 async function readClipboardFileDarwin() {
-  const fileClipboardBin = assertFileClipboardBin();
-
   try {
-    const { stdout } = await execFileAsync(fileClipboardBin, ["read"]);
+    const { stdout } = await runProgram(clipboardBin, "read");
     return JSON.parse(stdout);
   } catch (error) {
     const message =
@@ -114,10 +95,8 @@ async function readClipboardFileDarwin() {
 }
 
 async function writeClipboardFileDarwin(files) {
-  const fileClipboardBin = assertFileClipboardBin();
-
   try {
-    await execFileAsync(fileClipboardBin, ["write", ...files]);
+    await runProgram(clipboardBin, "write", ...files);
     return files;
   } catch (error) {
     const message =
@@ -176,7 +155,7 @@ foreach ($file in $args) {
 `;
 
   try {
-    await runPowerShell(script, files);
+    await runPowerShell(script, ...files);
     return files;
   } catch (error) {
     const message =

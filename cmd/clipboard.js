@@ -3,11 +3,20 @@ import {
   assertNonBlankStringOrNonEmptyArray,
 } from "../infra/assert.js";
 
-import { readClipboardText, writeClipboardText } from "../local/text-clipboard.js";
+import {
+  readClipboardText,
+  writeClipboardText,
+} from "../clipboard/text-clipboard.js";
 
-import { readClipboardFile, writeClipboardFile } from "../local/file-clipboard.js";
+import {
+  readClipboardFile,
+  writeClipboardFile,
+} from "../clipboard/file-clipboard.js";
 
-import { readClipboardImage, writeClipboardImage } from "../local/image-clipboard.js";
+import {
+  readClipboardImage,
+  writeClipboardImage,
+} from "../clipboard/image-clipboard.js";
 
 export const CLIPBOARD_COMMANDS = {
   read: {
@@ -87,7 +96,10 @@ export async function cmd_writeClipboardFile({ argv, options } = {}) {
   const writtenFiles = await writeClipboardFile(files, options);
 
   const { reporter } = options;
-  reporter?.info?.(`Wrote ${writtenFiles.length} file(s) to clipboard`, options);
+  reporter?.info?.(
+    `Wrote ${writtenFiles.length} file(s) to clipboard`,
+    options,
+  );
   for (const file of writtenFiles) {
     reporter?.info?.(`Wrote file to clipboard: ${file}`, options);
   }
@@ -96,25 +108,25 @@ export async function cmd_writeClipboardFile({ argv, options } = {}) {
 }
 
 export async function cmd_readClipboardImage({ argv, options } = {}) {
-  const [outputPath] = argv;
-  assertNonBlankString(outputPath, "argv[0]");
+  const [imagePath] = argv;
+  assertNonBlankString(imagePath, "argv[0]");
 
-  const image = await readClipboardImage(outputPath, options);
+  imagePath = await readClipboardImage(imagePath, options);
 
   const { reporter } = options;
-  reporter?.info?.(`Read image from clipboard: ${outputPath}`, options);
+  reporter?.info?.(`Read image from clipboard: ${imagePath}(png)`, options);
 
-  return image;
+  return imagePath;
 }
 
 export async function cmd_writeClipboardImage({ argv, options } = {}) {
   const [imagePath] = argv;
   assertNonBlankString(imagePath, "argv[0]");
 
-  await writeClipboardImage(imagePath, options);
+  imagePath = await writeClipboardImage(imagePath, options);
 
   const { reporter } = options;
   reporter?.info?.(`Wrote image to clipboard: ${imagePath}`, options);
 
-  return true;
+  return imagePath;
 }
