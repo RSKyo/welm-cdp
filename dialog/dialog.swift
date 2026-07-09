@@ -54,7 +54,7 @@ func runOpenPanel(
     panel.canChooseFiles = canChooseFiles
     panel.canChooseDirectories = canChooseDirectories
     panel.allowsMultipleSelection = allowsMultipleSelection
-    panel.canCreateDirectories = false
+    panel.canCreateDirectories = true
 
     panel.begin { response in
 
