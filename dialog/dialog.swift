@@ -26,7 +26,9 @@ func printPath(_ url: URL) {
 }
 
 func printPaths(_ urls: [URL]) {
-    let paths = urls.map(\.path)
+    let paths = urls.map { url in
+        url.path
+    }
 
     do {
         let data = try JSONSerialization.data(withJSONObject: paths)

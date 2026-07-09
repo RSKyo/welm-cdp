@@ -9,13 +9,14 @@
   "scripts": {
     "start": "node ./cli.js",
     "test": "node --test",
-    "compile:file-clipboard": "swiftc clipboard/file-clipboard.swift -o clipboard/file-clipboard.bin",
-    "compile:image-clipboard": "swiftc clipboard/image-clipboard.swift -o clipboard/image-clipboard.bin",
-    "compile:clipboard": "npm run compile:file-clipboard && npm run compile:image-clipboard",
 
-    "compile:dialog": "swiftc dialog/dialog.swift -o dialog/dialog.bin",
+    "mac:compile:dialog": "swiftc dialog/dialog.swift -o dialog/dialog.bin && chmod +x dialog/dialog.bin",
 
-    "compile": "npm run compile:clipboard && npm run compile:dialog"
+    "mac:compile:file-clipboard": "swiftc clipboard/file-clipboard.swift -o clipboard/file-clipboard.bin && chmod +x clipboard/file-clipboard.bin",
+    "mac:compile:image-clipboard": "swiftc clipboard/image-clipboard.swift -o clipboard/image-clipboard.bin && chmod +x clipboard/image-clipboard.bin",
+    "mac:compile:clipboard": "npm run mac:compile:file-clipboard && npm run mac:compile:image-clipboard",
+
+    "mac:compile": "npm run mac:compile:dialog && npm run mac:compile:clipboard"
   },
   "keywords": [],
   "author": "",

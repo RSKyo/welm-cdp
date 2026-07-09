@@ -60,15 +60,19 @@ async function getTarget(targetId, options = {}) {
 }
 
 async function findTarget(keyword, options = {}) {
+  const targets = await findTargets(keyword, options);
+
+  return targets[0] ?? null;
+}
+
+async function findTargets(keyword, options = {}) {
   const search = keyword.toLowerCase();
   const targets = await listTargets(options);
 
-  return (
-    targets.find(
-      (target) =>
-        target.title.toLowerCase().includes(search) ||
-        target.url.toLowerCase().includes(search),
-    ) ?? null
+  return targets.filter(
+    (target) =>
+      target.title.toLowerCase().includes(search) ||
+      target.url.toLowerCase().includes(search),
   );
 }
 
@@ -79,6 +83,23 @@ async function activateTarget(targetId, options = {}) {
     ...cdpOptions,
     id: targetId,
   });
+}
+
+async function reloadTarget(targetId, options = {}) {
+  const cdpOptions = getCdpOptions(options);
+
+  const client = await CDP({
+    ...cdpOptions,
+    target: targetId,
+  });
+
+  try {
+    await client.Page.reload({
+      ignoreCache: true,
+    });
+  } finally {
+    await client.close();
+  }
 }
 
 async function openTarget(url, options = {}) {
@@ -140,7 +161,7 @@ async function checkChromeBin(chromeBin = getChromeBin()) {
 /**
  * 检查 CDP 服务是否可访问。
  */
-async function isChromeReady(options = {}) {
+export async function isChromeReady(options = {}) {
   const cdpOptions = getCdpOptions(options);
 
   try {
@@ -268,6 +289,10 @@ export async function findChromePage(keyword, options = {}) {
   return await findTarget(keyword, getPageTargetOptions(options));
 }
 
+export async function findChromePages(keyword, options = {}) {
+  return await findTargets(keyword, getPageTargetOptions(options));
+}
+
 export async function activateChromePage(targetId, options = {}) {
   await activateTarget(targetId, options);
 
@@ -357,20 +382,42 @@ async function waitPageReady(targetId, options = {}) {
   }
 }
 
+export async function reloadChromePage(targetId, options = {}) {
+  const startTime = Date.now();
+
+  options.reporter?.progress?.("Reloading page...", options);
+
+  await reloadTarget(targetId, options);
+
+  options.reporter?.progress?.("Waiting for page...", options);
+
+  await waitPageReady(targetId, options);
+
+  const target = await getTarget(targetId, getPageTargetOptions(options));
+
+  const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+
+  options.reporter?.progressDone?.(
+    `Page reloaded (${elapsed}s) ${target.url}`,
+    options,
+  );
+
+  return target;
+}
+
 export async function openChromePage(url, options = {}) {
   const startTime = Date.now();
 
   options.reporter?.progress?.("Opening page...", options);
 
-  let target = await openTarget(url, options);
-  const { targetId } = target;
+  const { targetId } = await openTarget(url, options);
 
   options.reporter?.progress?.("Waiting for page...", options);
 
   await waitPageReady(targetId, options);
 
   // 由于 url 是异步加载的，因此前面获取的 target title 是空的，需要重新获取。
-  target = await getTarget(targetId, getPageTargetOptions(options));
+  const target = await getTarget(targetId, getPageTargetOptions(options));
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
 
