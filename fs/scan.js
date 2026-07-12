@@ -7,41 +7,89 @@
 // - scanFiles(input, options)
 // - scanDirs(dirPath, options)
 //
-// scanFiles options:
-// - includeExts: include only specific file extensions, e.g. [".mp3", ".flac"]
-// - excludeExts: exclude specific file extensions, e.g. [".jpg", ".png"]
-// - includeKeywords: include files whose base name contains any keyword, e.g. ["live"]
-// - excludeKeywords: exclude files whose base name contains any keyword, e.g. ["demo"]
-// - includeHidden: include hidden files and directories, default false
-//
-// scanDirs options:
-// - includeKeywords: include directories whose base name contains any keyword, e.g. ["album"]
-// - excludeKeywords: exclude directories whose base name contains any keyword, e.g. ["tmp"]
-// - includeHidden: include hidden directories, default false
+// Features:
+// - Recursive file and directory traversal.
+// - File filtering by extension and name keywords.
+// - Directory filtering by name keywords.
+// - Optional hidden file and directory inclusion.
 //
 // Design:
 // - All methods are synchronous.
 // - scanFiles accepts either a file path or a directory path.
 // - scanFiles returns file entries only, not directory entries.
 // - scanDirs accepts a directory path only.
-// - scanDirs returns subdirectory entries only, not file entries.
-// - scanDirs does not include the root directory itself.
+// - scanDirs returns subdirectory entries only, not the root directory.
 // - Hidden files and directories are skipped by default.
-// - File extension filters only apply to files.
-// - Keyword filters apply to returned entries, not parent traversal.
-// - Non-matching parent directories are still traversed unless hidden.
+// - Extension filters only apply to files.
+// - Keyword filters apply to returned entries, not traversal.
+// - Non-matching parent directories are still traversed.
 //
 // Version: 0.2.0
 // Last modified: 2026-07-07
 // -----------------------------------------------------------------------------
 
 import fs from "node:fs";
-import path from "node:path";
+import nodePath from "node:path";
 
 // -----------------------------------------------------------------------------
-// Scan files
+// Public API
 // -----------------------------------------------------------------------------
 
+/**
+ * Recursively scan files from a file or directory path.
+ *
+ * @example
+ * const files = scanFiles("/music", {
+ *   includeExts: [".mp3", ".flac"],
+ *   excludeKeywords: ["demo"],
+ * });
+ *
+ * @param {string} input
+ * File path or directory path to scan.
+ *
+ * @param {Object} [options]
+ * Scan options.
+ *
+ * @param {string[]} [options.includeExts]
+ * Include only files with specified extensions.
+ * Extensions can be written with or without a leading dot.
+ * Example: [".mp3", "flac"]
+ *
+ * @param {string[]} [options.excludeExts]
+ * Exclude files with specified extensions.
+ * Example: [".jpg", ".png"]
+ *
+ * @param {string[]} [options.includeKeywords]
+ * Include files whose name contains any keyword.
+ * Example: ["live", "concert"]
+ *
+ * @param {string[]} [options.excludeKeywords]
+ * Exclude files whose name contains any keyword.
+ * Example: ["demo", "test"]
+ *
+ * @param {boolean} [options.includeHidden=false]
+ * Include hidden files and directories.
+ *
+ * @returns {{
+ *   root: string,
+ *   dir: string,
+ *   base: string,
+ *   ext: string,
+ *   name: string,
+ *   filePath: string
+ * }[]}
+ *
+ * Array of file entries.
+ *
+ * Each entry contains:
+ * 
+ * - root: Root part of the path.
+ * - dir: Directory path containing the file.
+ * - base: File name with extension.
+ * - ext: File extension including the leading dot.
+ * - name: File name without extension.
+ * - filePath: Full file path.
+ */
 export function scanFiles(input, options = {}) {
   if (!input || !fs.existsSync(input)) {
     return [];
@@ -70,10 +118,52 @@ export function scanFiles(input, options = {}) {
   return [];
 }
 
-// -----------------------------------------------------------------------------
-// Scan directories
-// -----------------------------------------------------------------------------
-
+/**
+ * Recursively scan subdirectories from a directory path.
+ *
+ * @example
+ * const dirs = scanDirs("/music", {
+ *   includeKeywords: ["album"],
+ *   excludeKeywords: ["temp"],
+ * });
+ *
+ * @param {string} dirPath
+ * Directory path to scan.
+ *
+ * @param {Object} [options]
+ * Scan options.
+ *
+ * @param {string[]} [options.includeKeywords]
+ * Include directories whose name contains any keyword.
+ * Example: ["album", "artist"]
+ *
+ * @param {string[]} [options.excludeKeywords]
+ * Exclude directories whose name contains any keyword.
+ * Example: ["temp", "cache"]
+ *
+ * @param {boolean} [options.includeHidden=false]
+ * Include hidden directories.
+ *
+ * @returns {{
+ *   root: string,
+ *   dir: string,
+ *   base: string,
+ *   ext: string,
+ *   name: string,
+ *   dirPath: string
+ * }[]}
+ *
+ * Array of directory entries.
+ *
+ * Each entry contains:
+ *
+ * - root: Root part of the path.
+ * - dir: Parent directory path.
+ * - base: Directory name.
+ * - ext: Directory extension, usually empty.
+ * - name: Directory name without extension.
+ * - dirPath: Full directory path.
+ */
 export function scanDirs(dirPath, options = {}) {
   if (!dirPath || !fs.existsSync(dirPath)) {
     return [];
@@ -111,7 +201,7 @@ function walkFiles(dirPath, options = {}) {
       continue;
     }
 
-    const fullPath = path.join(dirPath, item.name);
+    const fullPath = nodePath.join(dirPath, item.name);
 
     if (item.isDirectory()) {
       result.push(...walkFiles(fullPath, options));
@@ -149,7 +239,7 @@ function walkDirs(dirPath, options = {}) {
       continue;
     }
 
-    const fullPath = path.join(dirPath, item.name);
+    const fullPath = nodePath.join(dirPath, item.name);
 
     if (matchPath(fullPath, options, { isFile: false })) {
       result.push(createDirEntry(fullPath));
@@ -192,7 +282,7 @@ function normalizeKeywords(keywords) {
 }
 
 function isHiddenPath(filePath) {
-  return isHiddenName(path.basename(filePath));
+  return isHiddenName(nodePath.basename(filePath));
 }
 
 function isHiddenName(name) {
@@ -200,7 +290,7 @@ function isHiddenName(name) {
 }
 
 function matchPath(targetPath, options = {}, entry = {}) {
-  const base = path.basename(targetPath).toLowerCase();
+  const base = nodePath.basename(targetPath).toLowerCase();
   const isFile = entry.isFile === true;
 
   if (
@@ -221,7 +311,7 @@ function matchPath(targetPath, options = {}, entry = {}) {
     return true;
   }
 
-  const ext = path.extname(targetPath).toLowerCase();
+  const ext = nodePath.extname(targetPath).toLowerCase();
 
   if (options.includeExts && !options.includeExts.includes(ext)) {
     return false;
@@ -235,7 +325,7 @@ function matchPath(targetPath, options = {}, entry = {}) {
 }
 
 function createFileEntry(filePath) {
-  const parsed = path.parse(filePath);
+  const parsed = nodePath.parse(filePath);
 
   return {
     ...parsed,
@@ -244,7 +334,7 @@ function createFileEntry(filePath) {
 }
 
 function createDirEntry(dirPath) {
-  const parsed = path.parse(dirPath);
+  const parsed = nodePath.parse(dirPath);
 
   return {
     ...parsed,

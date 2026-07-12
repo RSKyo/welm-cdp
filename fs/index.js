@@ -5,14 +5,6 @@
 //
 // Public API:
 //
-// From ./path.js:
-// - exists(filePath)
-// - isFile(filePath)
-// - isDirectory(dirPath)
-// - joinPath(...segments)
-// - ensureDir(dirPath)
-// - removeDir(dirPath)
-//
 // From ./file.js:
 // - readFileText(filePath, options)
 // - writeFileText(filePath, text, options)
@@ -40,6 +32,5 @@
 // Last modified: 2026-07-07
 // -----------------------------------------------------------------------------
 
-export * from "./path.js";
 export * from "./file.js";
 export * from "./scan.js";

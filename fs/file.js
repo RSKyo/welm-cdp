@@ -4,25 +4,34 @@
 // Local file read/write utilities.
 //
 // Public API:
-// - readFileText(filePath, options)
-// - writeFileText(filePath, text, options)
-// - readFileJson(filePath, options)
-// - writeFileJson(filePath, value, options)
-// - readFileBuffer(filePath)
-// - writeFileBuffer(filePath, buffer)
-// - readFileBase64(filePath)
-// - writeFileBase64(filePath, base64)
 // - moveFileTo(filePath, toFilePath, options)
 // - copyFileTo(filePath, toFilePath, options)
 // - removeFile(filePath)
 // - renameFile(filePath, name)
 //
+// - readFileText(filePath, options)
+// - writeFileText(filePath, text, options)
+// - readFileJson(filePath, options)
+// - writeFileJson(filePath, value, options)
+// - readFileBuffer(filePath)
+// - writeFileBuffer(filePath, buffer, options)
+// - readFileBase64(filePath)
+// - writeFileBase64(filePath, base64, options)
+//
+// Features:
+// - File move, copy, remove, and rename operations.
+// - Text, JSON, Buffer, and Base64 file read/write operations.
+// - Parent directories are created automatically before writing files.
+// - JSON output supports configurable indentation and final newline.
+//
 // Design:
 // - All methods are synchronous.
-// - Parent directories are created automatically before writing files.
-// - JSON files are written with 2-space indentation and a final newline by default.
 // - Public read/write methods stay flat and do not call each other.
-// - Public read/write methods call the internal readFile / writeFile helpers.
+// - Public read/write methods use internal low-level helpers.
+// - Write operations do not overwrite existing files by default.
+// - Cross-device file moves automatically fallback to copy and remove.
+// - Read methods throw when the target file does not exist.
+// - Write methods create missing parent directories automatically.
 //
 // Version: 0.1.0
 // Last modified: 2026-07-07
@@ -32,107 +41,34 @@ import fs from "node:fs";
 import nodePath from "node:path";
 
 // -----------------------------------------------------------------------------
-// Text read/write
+// Public API: File Operations
 // -----------------------------------------------------------------------------
 
-export function readFileText(filePath, options = {}) {
-  assertExistingFile(filePath, "filePath");
-
-  const { encoding = "utf8" } = options;
-
-  return readFile(filePath).toString(encoding);
-}
-
-export function writeFileText(filePath, text, options = {}) {
-  assertFileIfExists(filePath, "filePath");
-  assertNonBlankString(text, "text");
-
-  const { encoding = "utf8", overwrite = false } = options;
-
-  return writeFile(filePath, String(text), { encoding, overwrite });
-}
-
-// -----------------------------------------------------------------------------
-// JSON read/write
-// -----------------------------------------------------------------------------
-
-export function readFileJson(filePath, options = {}) {
-  assertExistingFile(filePath, "filePath");
-
-  const { encoding = "utf8" } = options;
-
-  const text = readFile(filePath).toString(encoding);
-
-  return JSON.parse(stripBom(text));
-}
-
-export function writeFileJson(filePath, value, options = {}) {
-  assertFileIfExists(filePath, "filePath");
-
-  const {
-    spaces = 2,
-    finalNewline = true,
-    encoding = "utf8",
-    overwrite = false,
-  } = options;
-
-  // it will throw an error if value is not JSON serializable
-  // example: circular reference, BigInt, undefined, function, symbol
-  // don't catch the error here, let it bubble up to the caller
-  let text = JSON.stringify(value, null, spaces);
-
-  if (text === undefined) {
-    throw new Error("value is not JSON serializable");
-  }
-
-  if (finalNewline) {
-    text += "\n";
-  }
-
-  return writeFile(filePath, text, { encoding, overwrite });
-}
-
-// -----------------------------------------------------------------------------
-// Buffer read/write
-// -----------------------------------------------------------------------------
-
-export function readFileBuffer(filePath) {
-  assertExistingFile(filePath, "filePath");
-
-  return readFile(filePath);
-}
-
-export function writeFileBuffer(filePath, buffer, options = {}) {
-  assertFileIfExists(filePath, "filePath");
-  assertBuffer(buffer, "buffer");
-
-  const { overwrite = false } = options;
-
-  return writeFile(filePath, buffer, { overwrite });
-}
-
-// -----------------------------------------------------------------------------
-// Base64 read/write
-// -----------------------------------------------------------------------------
-
-export function readFileBase64(filePath) {
-  assertExistingFile(filePath, "filePath");
-
-  return readFile(filePath).toString("base64");
-}
-
-export function writeFileBase64(filePath, base64, options = {}) {
-  const clean = normalizeBase64(base64);
-
-  const { overwrite = false } = options;
-
-  return writeFile(filePath, Buffer.from(clean, "base64"), { overwrite });
-}
-
-// -----------------------------------------------------------------------------
-// File operations
-// -----------------------------------------------------------------------------
-
+/**
+ * Move a file to a new location.
+ *
+ * @example
+ * const newPath = moveFileTo(
+ *   "/tmp/a.txt",
+ *   "/backup/a.txt"
+ * );
+ *
+ * @param {string} filePath
+ * Source file path.
+ *
+ * @param {string} toFilePath
+ * Target file path.
+ * Parent directories are created automatically.
+ *
+ * @param {Object} [options]
+ * Move options.
+ *
+ * @param {boolean} [options.overwrite=false]
+ * Overwrite the target file if it already exists.
+ *
+ * @returns {string}
+ * Target file path.
+ */
 export function moveFileTo(filePath, toFilePath, options = {}) {
   assertExistingFile(filePath, "filePath");
   assertFileIfExists(toFilePath, "toFilePath");
@@ -148,7 +84,7 @@ export function moveFileTo(filePath, toFilePath, options = {}) {
   }
 
   const toDirPath = nodePath.dirname(toFilePath);
-  ensureDir(toDirPath, "toDirPath");
+  ensureDir(toDirPath);
 
   try {
     // Moving within the same file system is fast and preserves metadata.
@@ -166,6 +102,34 @@ export function moveFileTo(filePath, toFilePath, options = {}) {
   return toFilePath;
 }
 
+/**
+ * Copy a file to a new location.
+ *
+ * @example
+ * const copiedPath = copyFileTo(
+ *   "/tmp/a.txt",
+ *   "/backup/a.txt",
+ *   {
+ *     overwrite: true,
+ *   }
+ * );
+ *
+ * @param {string} filePath
+ * Source file path.
+ *
+ * @param {string} toFilePath
+ * Target file path.
+ * Parent directories are created automatically.
+ *
+ * @param {Object} [options]
+ * Copy options.
+ *
+ * @param {boolean} [options.overwrite=false]
+ * Overwrite the target file if it already exists.
+ *
+ * @returns {string}
+ * Target file path.
+ */
 export function copyFileTo(filePath, toFilePath, options = {}) {
   assertExistingFile(filePath, "filePath");
   assertFileIfExists(toFilePath, "toFilePath");
@@ -173,7 +137,7 @@ export function copyFileTo(filePath, toFilePath, options = {}) {
   const { overwrite = false } = options;
 
   const toDirPath = nodePath.dirname(toFilePath);
-  ensureDir(toDirPath, "toDirPath");
+  ensureDir(toDirPath);
 
   // mode 0: overwrite the existing target file.
   // COPYFILE_EXCL: throw EEXIST if the target file already exists.
@@ -192,6 +156,18 @@ export function copyFileTo(filePath, toFilePath, options = {}) {
   return toFilePath;
 }
 
+/**
+ * Remove a file.
+ *
+ * @example
+ * removeFile("/tmp/a.txt");
+ *
+ * @param {string} filePath
+ * File path to remove.
+ *
+ * @returns {boolean}
+ * Returns true after successful removal.
+ */
 export function removeFile(filePath) {
   assertExistingFile(filePath, "filePath");
 
@@ -200,6 +176,25 @@ export function removeFile(filePath) {
   return true;
 }
 
+/**
+ * Rename a file in the same directory.
+ *
+ * @example
+ * const newPath = renameFile(
+ *   "/tmp/a.txt",
+ *   "b.txt"
+ * );
+ *
+ * @param {string} filePath
+ * Existing file path.
+ *
+ * @param {string} name
+ * New file name.
+ * If the extension is omitted, the original extension is preserved.
+ *
+ * @returns {string}
+ * New file path.
+ */
 export function renameFile(filePath, name) {
   assertExistingFile(filePath, "filePath");
   assertNonBlankString(name, "name");
@@ -233,8 +228,277 @@ export function renameFile(filePath, name) {
 }
 
 // -----------------------------------------------------------------------------
-// Private helpers
+// Public API: Text / JSON
 // -----------------------------------------------------------------------------
+
+/**
+ * Read a text file.
+ *
+ * @example
+ * const text = readFileText("/tmp/config.txt");
+ *
+ * @param {string} filePath
+ * Text file path.
+ *
+ * @param {Object} [options]
+ * Read options.
+ *
+ * @param {BufferEncoding} [options.encoding="utf8"]
+ * Text encoding.
+ *
+ * @returns {string}
+ * File content as string.
+ */
+export function readFileText(filePath, options = {}) {
+  assertExistingFile(filePath, "filePath");
+
+  const { encoding = "utf8" } = options;
+
+  return readFile(filePath).toString(encoding);
+}
+
+/**
+ * Write text content to a file.
+ *
+ * @example
+ * writeFileText(
+ *   "/tmp/config.txt",
+ *   "hello",
+ *   {
+ *     overwrite: true,
+ *   }
+ * );
+ *
+ * @param {string} filePath
+ * Target file path.
+ *
+ * @param {string} text
+ * Text content to write.
+ *
+ * @param {Object} [options]
+ * Write options.
+ *
+ * @param {BufferEncoding} [options.encoding="utf8"]
+ * Text encoding.
+ *
+ * @param {boolean} [options.overwrite=false]
+ * Overwrite the existing file.
+ *
+ * @returns {string}
+ * Target file path.
+ */
+export function writeFileText(filePath, text, options = {}) {
+  assertFileIfExists(filePath, "filePath");
+  assertNonBlankString(text, "text");
+
+  const { encoding = "utf8", overwrite = false } = options;
+
+  return writeFile(filePath, String(text), { encoding, overwrite });
+}
+
+/**
+ * Read a JSON file.
+ *
+ * @example
+ * const config = readFileJson("/tmp/config.json");
+ *
+ * @param {string} filePath
+ * JSON file path.
+ *
+ * @param {Object} [options]
+ * Read options.
+ *
+ * @param {BufferEncoding} [options.encoding="utf8"]
+ * Text encoding.
+ *
+ * @returns {Object}
+ * Parsed JSON value.
+ */
+export function readFileJson(filePath, options = {}) {
+  assertExistingFile(filePath, "filePath");
+
+  const { encoding = "utf8" } = options;
+
+  const text = readFile(filePath).toString(encoding);
+
+  return JSON.parse(stripBom(text));
+}
+
+/**
+ * Write a value as JSON file.
+ *
+ * @example
+ * writeFileJson(
+ *   "/tmp/config.json",
+ *   {
+ *     name: "test",
+ *   },
+ *   {
+ *     overwrite: true,
+ *   }
+ * );
+ *
+ * @param {string} filePath
+ * Target JSON file path.
+ *
+ * @param {any} value
+ * JSON serializable value.
+ *
+ * @param {Object} [options]
+ * Write options.
+ *
+ * @param {number} [options.spaces=2]
+ * JSON indentation spaces.
+ *
+ * @param {boolean} [options.finalNewline=true]
+ * Append a newline after JSON content.
+ *
+ * @param {BufferEncoding} [options.encoding="utf8"]
+ * Text encoding.
+ *
+ * @param {boolean} [options.overwrite=false]
+ * Overwrite the existing file.
+ *
+ * @returns {string}
+ * Target file path.
+ */
+export function writeFileJson(filePath, value, options = {}) {
+  assertFileIfExists(filePath, "filePath");
+
+  const {
+    spaces = 2,
+    finalNewline = true,
+    encoding = "utf8",
+    overwrite = false,
+  } = options;
+
+  // it will throw an error if value is not JSON serializable
+  // example: circular reference, BigInt, undefined, function, symbol
+  // don't catch the error here, let it bubble up to the caller
+  let text = JSON.stringify(value, null, spaces);
+
+  if (text === undefined) {
+    throw new Error("value is not JSON serializable");
+  }
+
+  if (finalNewline) {
+    text += "\n";
+  }
+
+  return writeFile(filePath, text, { encoding, overwrite });
+}
+
+// -----------------------------------------------------------------------------
+// Public API: Binary / Base64
+// -----------------------------------------------------------------------------
+
+/**
+ * Read a file as Buffer.
+ *
+ * @example
+ * const buffer = readFileBuffer("/tmp/image.bin");
+ *
+ * @param {string} filePath
+ * File path.
+ *
+ * @returns {Buffer}
+ * File content buffer.
+ */
+export function readFileBuffer(filePath) {
+  assertExistingFile(filePath, "filePath");
+
+  return readFile(filePath);
+}
+
+/**
+ * Write Buffer data to a file.
+ *
+ * @example
+ * writeFileBuffer(
+ *   "/tmp/image.bin",
+ *   buffer
+ * );
+ *
+ * @param {string} filePath
+ * Target file path.
+ *
+ * @param {Buffer|Uint8Array} buffer
+ * Binary content.
+ *
+ * @param {Object} [options]
+ * Write options.
+ *
+ * @param {boolean} [options.overwrite=false]
+ * Overwrite the existing file.
+ *
+ * @returns {string}
+ * Target file path.
+ */
+export function writeFileBuffer(filePath, buffer, options = {}) {
+  assertFileIfExists(filePath, "filePath");
+  assertBuffer(buffer, "buffer");
+
+  const { overwrite = false } = options;
+
+  return writeFile(filePath, buffer, { overwrite });
+}
+
+/**
+ * Read a file and return Base64 encoded content.
+ *
+ * @example
+ * const base64 = readFileBase64("/tmp/image.png");
+ *
+ * @param {string} filePath
+ * File path.
+ *
+ * @returns {string}
+ * Base64 encoded content.
+ */
+export function readFileBase64(filePath) {
+  assertExistingFile(filePath, "filePath");
+
+  return readFile(filePath).toString("base64");
+}
+
+/**
+ * Write Base64 encoded content to a file.
+ *
+ * @example
+ * writeFileBase64(
+ *   "/tmp/image.png",
+ *   base64
+ * );
+ *
+ * @param {string} filePath
+ * Target file path.
+ *
+ * @param {string} base64
+ * Base64 encoded content.
+ * Data URLs with prefix are supported.
+ *
+ * @param {Object} [options]
+ * Write options.
+ *
+ * @param {boolean} [options.overwrite=false]
+ * Overwrite the existing file.
+ *
+ * @returns {string}
+ * Target file path.
+ */
+export function writeFileBase64(filePath, base64, options = {}) {
+  const clean = normalizeBase64(base64);
+
+  const { overwrite = false } = options;
+
+  return writeFile(filePath, Buffer.from(clean, "base64"), { overwrite });
+}
+
+// -----------------------------------------------------------------------------
+// Private Helpers
+// -----------------------------------------------------------------------------
+
+// Assertions
 
 function assertBuffer(value, fieldName = "value") {
   if (!Buffer.isBuffer(value) && !(value instanceof Uint8Array)) {
@@ -290,8 +554,8 @@ function assertFileIfExists(filePath, fieldName = "path") {
   return filePath;
 }
 
-function ensureDir(dirPath, fieldName = "dir") {
-  assertPath(dirPath, fieldName);
+function ensureDir(dirPath) {
+  assertPath(dirPath, "dirPath");
 
   if (
     dirPath === "/" ||
@@ -320,7 +584,7 @@ function readFile(filePath) {
 
 function writeFile(filePath, data, options = {}) {
   const dir = nodePath.dirname(filePath);
-  ensureDir(dir, "dir");
+  ensureDir(dir);
 
   const encoding = options.encoding || null;
   const overwrite = options.overwrite || false;
