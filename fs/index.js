@@ -22,6 +22,10 @@
 // - writeFileBuffer(filePath, buffer)
 // - readFileBase64(filePath)
 // - writeFileBase64(filePath, base64)
+// - moveFileTo(filePath, toFilePath, options)
+// - copyFileTo(filePath, toFilePath, options)
+// - removeFile(filePath)
+// - renameFile(filePath, name)
 //
 // From ./scan.js:
 // - scanFiles(input, options)

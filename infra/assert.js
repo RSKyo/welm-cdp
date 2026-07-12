@@ -133,6 +133,14 @@ export function assertNonBlankStringOrNonEmptyArray(
   );
 }
 
+export function assertPath(value, fieldName = "value") {
+  if (!isPathLike(value)) {
+    throw new Error(`${fieldName} must be a valid path`);
+  }
+
+  return value;
+}
+
 // #endregion
 
 // #region Private Helper 原子判断
@@ -198,6 +206,22 @@ const isHttpUrl = (value) => {
   const url = parseUrl(value);
 
   return url?.protocol === "http:" || url?.protocol === "https:";
+};
+
+const isPathLike = (value) => {
+  if (typeof value !== "string" || value.length === 0) {
+    return false;
+  }
+
+  return (
+    value.includes("/") ||
+    value.includes("\\") ||
+    value === "." ||
+    value === ".." ||
+    value.startsWith("./") ||
+    value.startsWith("../") ||
+    value.startsWith("~/")
+  );
 };
 
 // #endregion
