@@ -1,24 +1,76 @@
+// -----------------------------------------------------------------------------
+// cdp/runtime
+// -----------------------------------------------------------------------------
+// JavaScript evaluation and polling utilities based on the Runtime domain.
+//
+// Public API:
+// - evaluate(targetId, expression, options)
+// - poll(targetId, expression, options)
+//
+// Features:
+// - Execute JavaScript expressions in a Chrome target.
+// - Wait for promises returned by evaluated expressions.
+// - Return evaluation results by value.
+// - Convert Runtime exceptions to JavaScript errors.
+// - Poll expressions until a matcher condition is satisfied.
+// - Require consecutive matches before completing a poll.
+// - Return polling values and execution statistics.
+//
+// Design:
+// - CDP clients are obtained and reused through client.js.
+// - Expressions are evaluated with returnByValue and awaitPromise enabled.
+// - Runtime undefined values are returned as JavaScript undefined.
+// - Poll matchers run in the Node.js context.
+// - Consecutive match counts reset after a failed match.
+// - Poll intervals never sleep beyond the remaining timeout.
+// - Poll results include the matched value and evaluation count.
+//
+// Version: 0.1.0
+// Last modified: 2026-07-14
+// -----------------------------------------------------------------------------
+
 import { getClient } from "./client.js";
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+const defaultPollTimeout = 30000; // 30 seconds
+const defaultPollInterval = 500; // 0.5 seconds
+
+// -----------------------------------------------------------------------------
+// Public API
+// -----------------------------------------------------------------------------
 
 /**
- * 在页面上下文中执行 JavaScript 表达式。
+ * Evaluate a JavaScript expression in a Chrome target.
  *
- * targetId:
- *   CDP Target ID
+ * Promises returned by the expression are awaited.
+ * The result is returned by value whenever possible.
  *
- * expression:
- *   JavaScript 表达式
+ * @example
+ * const title = await evaluate(
+ *   targetId,
+ *   "document.title"
+ * );
  *
- * options:
- *   host  CDP Host
- *   port  CDP Port
+ * @param {string} targetId
+ * Chrome target ID.
  *
- * 返回：
- *   expression 的执行结果
+ * @param {string} expression
+ * JavaScript expression to evaluate.
+ *
+ * @param {Object} [options]
+ * Runtime and CDP options.
+ *
+ * @param {string} [options.cdpHost="127.0.0.1"]
+ * Chrome CDP service host.
+ *
+ * @param {number} [options.cdpPort=9222]
+ * Chrome CDP service port.
+ *
+ * @returns {Promise<*>}
+ * Evaluated expression result.
+ *
+ * @throws {Error}
+ * Throws if the expression raises an exception
+ * or the Runtime result is missing.
  */
 export async function evaluate(targetId, expression, options = {}) {
   const { Runtime } = await getClient(targetId, options);
@@ -54,6 +106,111 @@ export async function evaluate(targetId, expression, options = {}) {
 }
 
 /**
+ * Poll a JavaScript expression until a matcher condition is satisfied.
+ *
+ * The matcher must succeed consecutively matchTimes times.
+ * A failed match resets the consecutive match count.
+ *
+ * The default matcher treats null, undefined, false, zero,
+ * and blank strings as unmatched. Other values are matched.
+ *
+ * @example
+ * const result = await poll(
+ *   targetId,
+ *   "document.readyState",
+ *   {
+ *     matcher(value) {
+ *       return value === "complete";
+ *     },
+ *   }
+ * );
+ *
+ * console.log(result.value);
+ * console.log(result.times);
+ *
+ * @param {string} targetId
+ * Chrome target ID.
+ *
+ * @param {string} expression
+ * JavaScript expression to evaluate repeatedly.
+ *
+ * @param {Object} [options]
+ * Polling, Runtime, and CDP options.
+ *
+ * @param {number} [options.pollTimeout=30000]
+ * Maximum polling duration, in milliseconds.
+ *
+ * @param {number} [options.pollInterval=500]
+ * Delay between evaluations, in milliseconds.
+ *
+ * @param {Function} [options.matcher]
+ * Function used to test each evaluated value.
+ *
+ * @param {number} [options.matchTimes=1]
+ * Required number of consecutive successful matches.
+ *
+ * @param {string} [options.cdpHost="127.0.0.1"]
+ * Chrome CDP service host.
+ *
+ * @param {number} [options.cdpPort=9222]
+ * Chrome CDP service port.
+ *
+ * @returns {Promise<Object>}
+ * Polling result containing value and times.
+ *
+ * @throws {Error}
+ * Throws if expression evaluation fails
+ * or the condition is not matched before the timeout.
+ */
+export async function poll(targetId, expression, options = {}) {
+  const timeout = options.pollTimeout ?? defaultPollTimeout;
+  const interval = options.pollInterval ?? defaultPollInterval;
+  const matcher = options.matcher ?? defaultMatcher;
+  const matchTimes = options.matchTimes ?? 1;
+
+  const start = Date.now();
+
+  let value;
+  let times = 0;
+  let matchedTimes = 0;
+
+  while (Date.now() - start < timeout) {
+    value = await evaluate(targetId, expression, options);
+    times++;
+
+    if (matcher(value)) {
+      matchedTimes++;
+
+      if (matchedTimes >= matchTimes) {
+        return {
+          value,
+          times,
+        };
+      }
+    } else {
+      matchedTimes = 0;
+    }
+
+    const remaining = timeout - (Date.now() - start);
+    if (remaining <= 0) break;
+
+    await sleep(Math.min(interval, remaining));
+  }
+
+  throw new Error(
+    `poll condition not matched: timeout=${timeout}ms, interval=${interval}ms, elapsed=${Date.now() - start}ms`,
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Private Helpers
+// -----------------------------------------------------------------------------
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
  * 判断轮询结果是否命中。
  *
  * 命中规则：
@@ -80,60 +237,4 @@ function defaultMatcher(value) {
   }
 
   return true;
-}
-
-/**
- * 轮询执行 expression，
- * 直到返回值满足 matcher 条件。
- *
- * matcher 连续命中 matchTimes 次后返回结果。
- *
- * 默认 matcher：
- * - null / undefined -> false
- * - false -> false
- * - 0 -> false
- * - 空字符串 -> false
- * - 其它值 -> true
- *
- * 默认 matchTimes 为 1。
- */
-export async function poll(targetId, expression, options = {}) {
-  const timeout = options.timeout ?? 30000;
-  const interval = options.interval ?? 500;
-  const matcher = options.matcher ?? defaultMatcher;
-  const matchTimes = options.matchTimes ?? 1;
-
-  const start = Date.now();
-
-  let value;
-  let times = 0;
-  let matchedTimes = 0;
-
-  while (Date.now() - start < timeout) {
-    value = await evaluate(targetId, expression, options);
-    times++;
-
-    if (matcher(value)) {
-      matchedTimes++;
-
-      if (matchedTimes >= matchTimes) {
-        return {
-          value,
-          times,
-          matchedTimes,
-        };
-      }
-    } else {
-      matchedTimes = 0;
-    }
-
-    const remaining = timeout - (Date.now() - start);
-    if (remaining <= 0) break;
-
-    await sleep(Math.min(interval, remaining));
-  }
-
-  throw new Error(
-    `poll condition not matched: timeout=${timeout}ms, interval=${interval}ms, elapsed=${Date.now() - start}ms`,
-  );
 }

@@ -85,12 +85,38 @@ const result = await client.Runtime.evaluate({
 
 如果 Client 创建失败，错误会继续向调用方抛出，同时对应的失败 Promise 会从缓存中删除。因此，下次调用 `getClient()` 时可以重新尝试连接。
 
-### `closeClients()`
+### `closeClients(onClose)`
 
-关闭当前缓存中的所有 CDP Client，并清空缓存。
+关闭当前缓存中的所有 CDP Client，并清空缓存。可以通过可选的 `onClose` 回调，清理与各个 Target 关联的其它状态。
 
 ```js
 await closeClients();
+```
+
+`onClose` 的调用形式如下：
+
+```js
+await onClose(targetId, {
+  cdpHost,
+  cdpPort,
+});
+```
+
+参数说明：
+
+| 参数 | 类型 | 说明 |
+| --- | --- | --- |
+| `targetId` | `string` | 当前 Client 对应的 Target ID |
+| `options.cdpHost` | `string` | 当前 Client 使用的 CDP 服务地址 |
+| `options.cdpPort` | `number` | 当前 Client 使用的 CDP 服务端口 |
+
+例如，在关闭 Client 后同时删除对应 Target 的鼠标状态：
+
+```js
+import { closeClients } from "welm-cdp/client";
+import { removeMouseState } from "welm-cdp/mouse";
+
+await closeClients(removeMouseState);
 ```
 
 该方法适合在一项完整操作结束时统一调用：
@@ -105,11 +131,22 @@ try {
 
 调用 `closeClients()`：
 
+- 会在关闭连接前清空内部 Client 缓存；
 - 会关闭 Node.js 与 Chrome Target 之间的 CDP 连接；
-- 会清空内部 Client 缓存；
+- 会在每个缓存项处理完成后调用一次可选的 `onClose`；
+- 会向 `onClose` 传入对应的 `targetId`、`cdpHost` 和 `cdpPort`；
 - 不会关闭 Chrome；
 - 不会关闭任何 Chrome Tab；
-- 会忽略单个 Client 创建失败或关闭失败，继续处理其他 Client。
+- 会忽略单个 Client 创建失败、关闭失败或回调执行失败，继续处理其他 Client。
+
+即使某个 Client 创建失败或关闭失败，对应的 `onClose` 仍然会执行，以便清理与该 Target 关联的其它状态。
+
+如果传入的 `onClose` 不是函数，方法会抛出错误：
+
+```js
+await closeClients("cleanup");
+// Error: onClose must be a function
+```
 
 缓存清空后，再次调用 `getClient()` 会创建新的 CDP 连接：
 
@@ -273,4 +310,5 @@ export async function run(main) {
 - Tab 被关闭后，Client 会自然断开并自动从缓存中删除，不需要额外关闭。
 - 任务结束但 Tab 继续保留时，应调用 `closeClients()` 主动释放 CDP 连接。
 - `closeClients()` 不会关闭 Chrome 或 Tab。
-- `closeClients()` 会忽略单个 Client 的创建或关闭错误，因此通常适合放在清理阶段使用。
+- `closeClients()` 可以接收 `onClose(targetId, options)`，用于清理与 Target 关联的其它状态。
+- `closeClients()` 会忽略单个 Client 的创建、关闭或回调错误，因此通常适合放在清理阶段使用。

@@ -1,29 +1,7 @@
 import { getClient } from "./client.js";
-import { focus, scrollIntoView, waitEditable } from "./dom.js";
+import { focus, scrollIntoView, waitElementEditable } from "./dom.js";
 
-import { writeClipboardText } from "../local/clipboard.js";
-
-/**
- * ----------------------------------------------------------------------------
- * Base Utils
- * ----------------------------------------------------------------------------
- */
-
-function q(value) {
-  return JSON.stringify(value);
-}
-
-function random(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function prop(key, value) {
-  return value === undefined ? {} : { [key]: value };
-}
+import { writeClipboardText } from "../clipboard/text-clipboard.js";
 
 const MODIFIER_KEYS = {
   alt: {
@@ -51,116 +29,38 @@ const MODIFIER_KEYS = {
   },
 };
 
-function resolveModifiers(modifierKeys) {
-  if (!modifierKeys) {
-    return { entries: [], modifiers: 0 };
-  }
-
-  const keys = Array.isArray(modifierKeys) ? modifierKeys : [modifierKeys];
-
-  const entries = [];
-  let modifiers = 0;
-
-  for (const k of keys) {
-    const entry = MODIFIER_KEYS[k.toLowerCase()];
-    if (!entry) continue;
-
-    entries.push(entry);
-    modifiers |= entry.modifiers;
-  }
-
-  return { entries, modifiers };
-}
-
-async function pressKey(targetId, key, code, options = {}) {
-  const { Input } = await getClient(targetId, options);
-
-  const { entries, modifiers } = resolveModifiers(options.keyEventWith);
-
-  const event = {
-    key,
-    code,
-    modifiers,
-    ...prop("windowsVirtualKeyCode", options.keyEventWindowsVirtualKeyCode),
-    ...prop("nativeVirtualKeyCode", options.keyEventNativeVirtualKeyCode),
-  };
-
-  for (const entry of entries) {
-    await Input.dispatchKeyEvent({
-      type: "keyDown",
-      key: entry.key,
-      code: entry.code,
-    });
-
-    await sleep(random(10, 30));
-  }
-
-  await Input.dispatchKeyEvent({
-    type: modifiers === 0 ? "keyDown" : "rawKeyDown",
-    ...event,
-    ...prop("text", options.keyEventText),
-    ...prop("commands", options.keyEventCommands),
-  });
-
-  await sleep(random(10, 30));
-
-  await Input.dispatchKeyEvent({
-    type: "keyUp",
-    ...event,
-  });
-
-  await sleep(random(10, 40));
-
-  const reversed = [...entries].reverse();
-  for (const entry of reversed) {
-    await Input.dispatchKeyEvent({
-      type: "keyUp",
-      key: entry.key,
-      code: entry.code,
-    });
-
-    await sleep(random(10, 40));
-  }
-
-  return true;
-}
-
-/**
- * ----------------------------------------------------------------------------
- * Key
- * ----------------------------------------------------------------------------
- */
+// -----------------------------------------------------------------------------
+// Public API: Key
+// -----------------------------------------------------------------------------
 
 export async function keyAny(targetId, key, code, options = {}) {
-  await pressKey(targetId, key, code, options);
+  return await pressKey(targetId, key, code, options);
 }
 
 export async function keyEnter(targetId, options = {}) {
-  await pressKey(targetId, "Enter", "Enter", {
+  return await pressKey(targetId, "Enter", "Enter", {
     ...options,
     keyEventText: "\r\n",
   });
 }
 
 export async function keyDelete(targetId, options = {}) {
-  await pressKey(targetId, "Delete", "Delete", {
+  return await pressKey(targetId, "Delete", "Delete", {
     ...options,
     keyEventCommands: ["Delete"],
   });
 }
 
 export async function keyBackspace(targetId, options = {}) {
-  await pressKey(targetId, "Backspace", "Backspace", {
+  return await pressKey(targetId, "Backspace", "Backspace", {
     ...options,
     keyEventCommands: ["BackwardDelete"],
   });
 }
 
-/**
- * ----------------------------------------------------------------------------
- * Cursor
- * ----------------------------------------------------------------------------
- */
+// -----------------------------------------------------------------------------
+// Public API: Cursor
+// -----------------------------------------------------------------------------
 
 export async function focusHome(targetId, options = {}) {
   await pressKey(targetId, "ArrowUp", "ArrowUp", {
@@ -238,11 +138,9 @@ export async function focusDown(targetId, options = {}) {
   return true;
 }
 
-/**
- * ----------------------------------------------------------------------------
- * Scroll
- * ----------------------------------------------------------------------------
- */
+// -----------------------------------------------------------------------------
+// Public API: Scroll
+// -----------------------------------------------------------------------------
 
 export async function scrollTop(targetId, options = {}) {
   await pressKey(targetId, "ArrowUp", "ArrowUp", {
@@ -264,11 +162,9 @@ export async function scrollBottom(targetId, options = {}) {
   return true;
 }
 
-/**
- * ----------------------------------------------------------------------------
- * Shortcut
- * ----------------------------------------------------------------------------
- */
+// -----------------------------------------------------------------------------
+// Public API: Shortcuts
+// -----------------------------------------------------------------------------
 
 export async function copy(targetId, options = {}) {
   await pressKey(targetId, "c", "KeyC", {
@@ -309,43 +205,13 @@ export async function clear(targetId, options = {}) {
   return true;
 }
 
-/**
- * ----------------------------------------------------------------------------
- * Text Input
- * ----------------------------------------------------------------------------
- */
-
-async function textInput(targetId, text, options = {}) {
-  const value = String(text);
-  const max = Math.min(value.length, options.typeCount ?? 15);
-  const min = Math.min(5, max);
-  const typeCount = random(min, max);
-
-  if (typeCount > 0) {
-    const typeText = value.slice(0, typeCount);
-
-    for (const char of typeText) {
-      await pressKey(targetId, "", "", {
-        ...options,
-        keyEventText: char,
-      });
-    }
-  }
-
-  const restText = value.slice(typeCount);
-
-  if (restText) {
-    await writeClipboardText(restText);
-    await sleep(random(40, 120));
-    await paste(targetId, options);
-  }
-
-  return true;
-}
+// -----------------------------------------------------------------------------
+// Public API: Text Input
+// -----------------------------------------------------------------------------
 
 export async function appendText(targetId, selector, text, options = {}) {
   await scrollIntoView(targetId, selector, options);
-  await waitEditable(targetId, selector, options);
+  await waitElementEditable(targetId, selector, options);
 
   await focus(targetId, selector, options);
 
@@ -357,7 +223,7 @@ export async function appendText(targetId, selector, text, options = {}) {
 
 export async function fillText(targetId, selector, text, options = {}) {
   await scrollIntoView(targetId, selector, options);
-  await waitEditable(targetId, selector, options);
+  await waitElementEditable(targetId, selector, options);
 
   await focus(targetId, selector, options);
 
@@ -365,4 +231,133 @@ export async function fillText(targetId, selector, text, options = {}) {
   await clear(targetId, options);
 
   return textInput(targetId, text, options);
+}
+
+// -----------------------------------------------------------------------------
+// Private Helpers
+// -----------------------------------------------------------------------------
+
+function q(value) {
+  return JSON.stringify(value);
+}
+
+function random(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function prop(key, value) {
+  return value === undefined ? {} : { [key]: value };
+}
+
+function resolveModifiers(modifierKeys) {
+  if (!modifierKeys) {
+    return { entries: [], modifiers: 0 };
+  }
+
+  const keys = Array.isArray(modifierKeys) ? modifierKeys : [modifierKeys];
+
+  const entries = [];
+  let modifiers = 0;
+
+  for (const k of keys) {
+    const entry = MODIFIER_KEYS[k.toLowerCase()];
+    if (!entry) continue;
+
+    entries.push(entry);
+    modifiers |= entry.modifiers;
+  }
+
+  return { entries, modifiers };
+}
+
+async function pressKey(targetId, key, code, options = {}) {
+  const { Input } = await getClient(targetId, options);
+
+  const { entries, modifiers } = resolveModifiers(options.keyEventWith);
+
+  const event = {
+    key,
+    code,
+    modifiers,
+    ...prop("windowsVirtualKeyCode", options.keyEventWindowsVirtualKeyCode),
+    ...prop("nativeVirtualKeyCode", options.keyEventNativeVirtualKeyCode),
+  };
+
+  try {
+    for (const entry of entries) {
+      await Input.dispatchKeyEvent({
+        type: "keyDown",
+        key: entry.key,
+        code: entry.code,
+      });
+
+      await sleep(random(10, 30));
+    }
+
+    await Input.dispatchKeyEvent({
+      type: modifiers === 0 ? "keyDown" : "rawKeyDown",
+      ...event,
+      ...prop("text", options.keyEventText),
+      ...prop("commands", options.keyEventCommands),
+    });
+
+    await sleep(random(10, 30));
+  } finally {
+    await Input.dispatchKeyEvent({
+      type: "keyUp",
+      ...event,
+    });
+
+    await sleep(random(10, 40));
+
+    const reversed = [...entries].reverse();
+    for (const entry of reversed) {
+      await Input.dispatchKeyEvent({
+        type: "keyUp",
+        key: entry.key,
+        code: entry.code,
+      });
+
+      await sleep(random(10, 40));
+    }
+  }
+
+  return true;
+}
+
+async function textInput(targetId, text, options = {}) {
+  const value = String(text);
+  const characters = Array.from(value);
+  const typeLimit = options.typeCount ?? 15;
+
+  if (!Number.isInteger(typeLimit) || typeLimit < 0) {
+    throw new Error("typeCount must be a non-negative integer");
+  }
+
+  const max = Math.min(characters.length, typeLimit);
+  const min = Math.min(5, max);
+  const typeCount = random(min, max);
+
+  const typedCharacters = characters.slice(0, typeCount);
+
+  for (const character of typedCharacters) {
+    await pressKey(targetId, "", "", {
+      ...options,
+      keyEventText: character,
+    });
+  }
+
+  const remainingText = characters.slice(typeCount).join("");
+
+  if (remainingText !== "") {
+    await writeClipboardText(remainingText);
+    await sleep(random(40, 120));
+    await paste(targetId, options);
+  }
+
+  return true;
 }

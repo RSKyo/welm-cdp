@@ -95,31 +95,64 @@ export async function getClient(targetId, options = {}) {
  * Close all cached CDP clients.
  *
  * The client cache is cleared before the connections
- * are closed. Individual client creation and close
- * errors are ignored so that cleanup can continue.
+ * are closed. Client creation and close errors are
+ * ignored so that the remaining clients can continue
+ * to be processed.
+ *
+ * After each client has been processed, onClose is
+ * called with its target ID and CDP connection options.
+ * Callback errors are also ignored.
  *
  * Closing clients only closes CDP connections.
  * It does not close Chrome or its pages.
+ *
+ * @param {(
+ *   targetId: string,
+ *   options: { cdpHost: string, cdpPort: number }
+ * ) => void | Promise<void>} [onClose]
+ * Optional callback used to clean up resources associated
+ * with each target.
  *
  * @example
  * try {
  *   await main();
  * } finally {
- *   await closeClients();
+ *   await closeClients(removeMouseState);
  * }
  *
  * @returns {Promise<void>}
- * Resolves after all cached clients have been processed.
+ * Resolves after all cached clients and their cleanup
+ * callbacks have been processed.
  */
-export async function closeClients() {
-  const clientPromises = [...clientPromiseMap.values()];
+export async function closeClients(onClose) {
+  if (onClose !== undefined && typeof onClose !== "function") {
+    throw new Error("onClose must be a function");
+  }
+
+  const entries = [...clientPromiseMap.entries()];
 
   clientPromiseMap.clear();
 
   await Promise.all(
-    clientPromises.map((clientPromise) =>
-      clientPromise.then((client) => client.close()).catch(() => {}),
-    ),
+    entries.map(async ([clientKey, clientPromise]) => {
+      const [, host, port, targetId] = clientKey.match(/^(.*):(\d+):([^:]+)$/);
+
+      try {
+        const client = await clientPromise;
+        await client.close();
+      } catch {
+        // Ignore client creation and close errors.
+      }
+
+      try {
+        await onClose?.(targetId, {
+          cdpHost: host,
+          cdpPort: Number(port),
+        });
+      } catch {
+        // Ignore cleanup errors.
+      }
+    }),
   );
 }
 
@@ -147,7 +180,7 @@ async function createClient(targetId, options = {}) {
 
   const client = await CDP({
     host,
-    port,
+    port: Number(port),
     target: targetId,
   });
 

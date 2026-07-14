@@ -8,34 +8,37 @@
 // - isChromeReady(options)
 //
 // - listChromePages(options)
-// - getChromePage(targetId, options)
 // - findChromePage(keyword, options)
 // - findChromePages(keywords, options)
-// - activateChromePage(targetId, options)
-// - reloadChromePage(targetId, options)
+// - activateChromePage(keyword, options)
+// - reloadChromePage(keyword, options)
 // - openChromePage(url, options)
 // - ensureChromePage(url, options)
-// - closeChromePage(targetId, options)
+// - closeChromePage(keywords, options)
 //
 // Features:
 // - Check and launch Chrome with a remote debugging port.
 // - Wait for the Chrome CDP service to become available.
-// - List, get, find, activate, reload, open, and close Chrome pages.
+// - List, find, activate, reload, open, and close Chrome pages.
 // - Filter Chrome targets by target type.
-// - Find pages by target ID, title, or URL using partial matching.
+// - Find one or more pages by target ID, title, or URL keywords.
+// - Activate or reload the first page matching a keyword.
+// - Close all pages matching any keyword.
 // - Wait for newly opened or reloaded pages to become ready.
 // - Support configurable CDP host, port, profile, and timeout options.
 //
 // Design:
 // - Chrome runs as a detached process with a dedicated user data directory.
 // - Page targets are normalized to targetId, type, title, and url.
-// - Page matching is case-insensitive and uses partial string matching.
+// - Target ID matching is exact and case-insensitive.
+// - Title and URL matching is partial and case-insensitive.
+// - Opening a page accepts only HTTP and HTTPS URLs.
 // - A page is ready when document.readyState is interactive or complete.
 // - Temporary CDP clients are always closed after use.
 // - Public methods return normalized Chrome or page information.
 //
-// Version: 0.1.0
-// Last modified: 2026-07-14
+// Version: 0.2.0
+// Last modified: 2026-07-15
 // -----------------------------------------------------------------------------
 
 import CDP from "chrome-remote-interface";
@@ -44,9 +47,18 @@ import { constants } from "node:fs";
 import { access } from "node:fs/promises";
 import nodePath from "node:path";
 
-const defaultHost = "127.0.0.1";
-const defaultPort = 9222;
-const defaultTargetType = "page";
+import {
+  getCdpOptions,
+  listTargets,
+  getTarget,
+  findTargets,
+  findTarget,
+  activateTarget,
+  reloadTarget,
+  openTarget,
+  closeTarget,
+} from "./target.js";
+
 const defaultUserDataDir = `${process.env.HOME}/.local/share/welm/chrome-profile`;
 
 const defaultChromeBinDarwin =
@@ -63,6 +75,34 @@ const defaultPageReadyInterval = 200;
 // Public API: Chrome
 // -----------------------------------------------------------------------------
 
+/**
+ * Check whether the Chrome CDP service is available.
+ *
+ * @example
+ * const ready = await isChromeReady();
+ *
+ * @param {Object} [options]
+ * CDP options.
+ *
+ * @param {string} [options.cdpHost="127.0.0.1"]
+ * Chrome CDP service host.
+ *
+ * @param {number} [options.cdpPort=9222]
+ * Chrome CDP service port.
+ *
+ * @returns {Promise<boolean>}
+ * Returns true if the Chrome CDP service is available.
+ */
+export async function isChromeReady(options = {}) {
+  const { host, port } = getCdpOptions(options);
+
+  try {
+    const res = await fetch(`http://${host}:${port}/json/version`);
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Ensure that the Chrome CDP service is available.
@@ -132,35 +172,6 @@ export async function ensureChrome(options = {}) {
 // -----------------------------------------------------------------------------
 
 /**
- * Check whether the Chrome CDP service is available.
- *
- * @example
- * const ready = await isChromeReady();
- *
- * @param {Object} [options]
- * CDP options.
- *
- * @param {string} [options.cdpHost="127.0.0.1"]
- * Chrome CDP service host.
- *
- * @param {number} [options.cdpPort=9222]
- * Chrome CDP service port.
- *
- * @returns {Promise<boolean>}
- * Returns true if the Chrome CDP service is available.
- */
-export async function isChromeReady(options = {}) {
-  const { host, port } = getCdpOptions(options);
-
-  try {
-    const res = await fetch(`http://${host}:${port}/json/version`);
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
-/**
  * List Chrome pages.
  *
  * By default, only targets with type "page" are returned.
@@ -188,41 +199,11 @@ export async function listChromePages(options = {}) {
 }
 
 /**
- * Get a Chrome page by target ID.
- *
- * @example
- * const page = await getChromePage(targetId);
- *
- * @param {string} targetId
- * Chrome target ID.
- *
- * @param {Object} [options]
- * CDP options.
- *
- * @param {string} [options.cdpHost="127.0.0.1"]
- * Chrome CDP service host.
- *
- * @param {number} [options.cdpPort=9222]
- * Chrome CDP service port.
- *
- * @param {string} [options.targetType="page"]
- * Target type to include.
- *
- * @returns {Promise<Object>}
- * Normalized Chrome page target.
- *
- * @throws {Error}
- * Throws if the target does not exist.
- */
-export async function getChromePage(targetId, options = {}) {
-  return await getTarget(targetId, options);
-}
-
-/**
  * Find the first Chrome page matching a keyword.
  *
- * The keyword is matched case-insensitively against
- * the target ID, title, and URL using partial matching.
+ * A target ID is matched exactly.
+ * Title and URL keywords use partial matching.
+ * Matching is case-insensitive.
  *
  * @example
  * const page = await findChromePage("example");
@@ -242,8 +223,15 @@ export async function getChromePage(targetId, options = {}) {
  * @param {string} [options.targetType="page"]
  * Target type to include.
  *
+ * @param {boolean} [options.throwIfNotFound=true]
+ * Throw an error if no page matches.
+ *
  * @returns {Promise<Object|null>}
- * First matching Chrome page, or null if no page matches.
+ * First matching Chrome page.
+ * Returns null when no page matches and throwIfNotFound is false.
+ *
+ * @throws {Error}
+ * Throws if no page matches and throwIfNotFound is true.
  */
 export async function findChromePage(keyword, options = {}) {
   return await findTarget(keyword, options);
@@ -252,8 +240,9 @@ export async function findChromePage(keyword, options = {}) {
 /**
  * Find Chrome pages matching one or more keywords.
  *
- * Each keyword is matched case-insensitively against
- * the target ID, title, and URL using partial matching.
+ * A target ID is matched exactly.
+ * Title and URL keywords use partial matching.
+ * Matching is case-insensitive.
  * A page is returned if it matches any keyword.
  *
  * @example
@@ -285,13 +274,16 @@ export async function findChromePages(keywords, options = {}) {
 }
 
 /**
- * Activate a Chrome page.
+ * Activate the first Chrome page matching a keyword.
+ *
+ * The keyword is matched case-insensitively against
+ * the target ID, title, and URL.
  *
  * @example
- * const page = await activateChromePage(targetId);
+ * const page = await activateChromePage("example");
  *
- * @param {string} targetId
- * Chrome target ID.
+ * @param {string} keyword
+ * Target ID, title, or URL keyword.
  *
  * @param {Object} [options]
  * CDP options.
@@ -307,24 +299,32 @@ export async function findChromePages(keywords, options = {}) {
  *
  * @returns {Promise<Object>}
  * Activated Chrome page.
+ *
+ * @throws {Error}
+ * Throws if no page matches.
  */
-export async function activateChromePage(targetId, options = {}) {
-  await activateTarget(targetId, options);
+export async function activateChromePage(keyword, options = {}) {
+  const target = await findTarget(keyword, options);
 
-  return await getTarget(targetId, options);
+  await activateTarget(target.targetId, options);
+
+  return target;
 }
 
 /**
- * Reload a Chrome page without using the cache.
+ * Reload the first Chrome page matching a keyword.
  *
+ * The keyword is matched case-insensitively against
+ * the target ID, title, and URL.
+ * The page is reloaded without using the cache.
  * The method waits until the page becomes ready
  * and then returns the latest page information.
  *
  * @example
- * const page = await reloadChromePage(targetId);
+ * const page = await reloadChromePage("example");
  *
- * @param {string} targetId
- * Chrome target ID.
+ * @param {string} keyword
+ * Target ID, title, or URL keyword.
  *
  * @param {Object} [options]
  * Reload options.
@@ -349,19 +349,24 @@ export async function activateChromePage(targetId, options = {}) {
  *
  * @returns {Promise<Object>}
  * Reloaded Chrome page.
+ *
+ * @throws {Error}
+ * Throws if no page matches.
  */
-export async function reloadChromePage(targetId, options = {}) {
+export async function reloadChromePage(keyword, options = {}) {
+  let target = await findTarget(keyword, options);
+
   const startTime = Date.now();
 
   options.reporter?.progress?.("Reloading page...", options);
 
-  await reloadTarget(targetId, options);
+  await reloadTarget(target.targetId, options);
 
   options.reporter?.progress?.("Waiting for page...", options);
 
-  await waitPageReady(targetId, options);
+  await waitPageReady(target.targetId, options);
 
-  const target = await getTarget(targetId, options);
+  target = await getTarget(target.targetId, options);
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
 
@@ -385,7 +390,7 @@ export async function reloadChromePage(targetId, options = {}) {
  * );
  *
  * @param {string} url
- * URL to open.
+ * HTTP or HTTPS URL to open.
  *
  * @param {Object} [options]
  * Open options.
@@ -410,20 +415,24 @@ export async function reloadChromePage(targetId, options = {}) {
  *
  * @returns {Promise<Object>}
  * Opened Chrome page.
+ *
+ * @throws {Error}
+ * Throws if url is not a valid HTTP or HTTPS URL.
  */
 export async function openChromePage(url, options = {}) {
+  assertHttpUrl(url);
+
   const startTime = Date.now();
 
   options.reporter?.progress?.("Opening page...", options);
 
-  const { targetId } = await openTarget(url, options);
+  let target = await openTarget(url, options);
 
   options.reporter?.progress?.("Waiting for page...", options);
 
-  await waitPageReady(targetId, options);
+  await waitPageReady(target.targetId, options);
 
-  // 由于 url 是异步加载的，因此前面获取的 target title 是空的，需要重新获取。
-  const target = await getTarget(targetId, options);
+  target = await getTarget(target.targetId, options);
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
 
@@ -470,9 +479,12 @@ export async function openChromePage(url, options = {}) {
  *
  * @returns {Promise<Object>}
  * Existing or newly opened Chrome page.
+ *
+ * @throws {Error}
+ * Throws if url is not a valid HTTP or HTTPS URL.
  */
 export async function ensureChromePage(url, options = {}) {
-  const target = await findChromePage(url, options);
+  const target = await findTarget(url, { ...options, throwIfNotFound: false });
 
   if (target) {
     return target;
@@ -482,15 +494,20 @@ export async function ensureChromePage(url, options = {}) {
 }
 
 /**
- * Close a Chrome page.
+ * Close all Chrome pages matching one or more keywords.
  *
- * The page information is retrieved before the page is closed.
+ * A target ID is matched exactly.
+ * Title and URL keywords use partial matching.
+ * Matching is case-insensitive.
  *
  * @example
- * const page = await closeChromePage(targetId);
+ * await closeChromePage([
+ *   "example",
+ *   "localhost",
+ * ]);
  *
- * @param {string} targetId
- * Chrome target ID.
+ * @param {string|string[]} keywords
+ * Target ID, title, or URL keywords.
  *
  * @param {Object} [options]
  * CDP options.
@@ -502,17 +519,19 @@ export async function ensureChromePage(url, options = {}) {
  * Chrome CDP service port.
  *
  * @param {string} [options.targetType="page"]
- * Target type used when retrieving the page.
+ * Target type to include.
  *
- * @returns {Promise<Object>}
- * Closed Chrome page information.
+ * @returns {Promise<boolean>}
+ * Returns true after all matching pages have been closed.
  */
-export async function closeChromePage(targetId, options = {}) {
-  const target = await getTarget(targetId, options);
+export async function closeChromePage(keywords, options = {}) {
+  const targets = await findTargets(keywords, options);
 
-  await closeTarget(targetId, options);
+  for (const { targetId } of targets) {
+    await closeTarget(targetId, options);
+  }
 
-  return target;
+  return true;
 }
 
 // -----------------------------------------------------------------------------
@@ -523,17 +542,34 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function getCdpOptions(options = {}) {
-  return {
-    host: options.cdpHost ?? defaultHost,
-    port: options.cdpPort ?? defaultPort,
-    targetType: options.targetType ?? defaultTargetType,
-    userDataDir: options.userDataDir ?? defaultUserDataDir,
-  };
+function parseUrl(value) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  try {
+    return new URL(value);
+  } catch {
+    return null;
+  }
+}
+
+function assertHttpUrl(url) {
+  const parsedUrl = parseUrl(url);
+
+  if (
+    !parsedUrl ||
+    (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:")
+  ) {
+    throw new Error(`invalid URL: ${url}`);
+  }
+
+  return url;
 }
 
 function normalizeChromeInfo(launched = false, options = {}) {
-  const { host, port, targetType, userDataDir } = getCdpOptions(options);
+  const { host, port, targetType } = getCdpOptions(options);
+  const userDataDir = options.userDataDir ?? defaultUserDataDir;
   const chromeBin = getChromeBin(options);
 
   return {
@@ -544,125 +580,6 @@ function normalizeChromeInfo(launched = false, options = {}) {
     chromeBin,
     launched,
   };
-}
-
-function normalizeTarget(target) {
-  return {
-    targetId: target.id,
-    type: target.type ?? "",
-    title: target.title ?? "",
-    url: target.url ?? "",
-  };
-}
-
-// -----------------------------------------------------------------------------
-// Private Helpers: CDP Target
-// -----------------------------------------------------------------------------
-
-async function listTargets(options = {}) {
-  const { host, port, targetType } = getCdpOptions(options);
-
-  const targets = await CDP.List({
-    host,
-    port,
-  });
-
-  const filteredTargets = targets.filter(
-    (target) => target.type === targetType,
-  );
-
-  return filteredTargets.map(normalizeTarget);
-}
-
-async function getTarget(targetId, options = {}) {
-  const targets = await listTargets(options);
-
-  const target = targets.find((target) => target.targetId === targetId);
-
-  if (!target) {
-    throw new Error(`target not found: ${targetId}`);
-  }
-
-  return target;
-}
-
-async function findTargets(keywords, options = {}) {
-  const targets = await listTargets(options);
-
-  let search = Array.isArray(keywords) ? keywords : [keywords];
-  search = search.map((keyword) => {
-    if (typeof keyword !== "string" || keyword.trim() === "") {
-      throw new Error(`keyword must be a non-empty string`);
-    }
-
-    return keyword.trim().toLowerCase();
-  });
-
-  return targets.filter((target) => {
-    return search.some((keyword) => {
-      if (target.targetId.toLowerCase().includes(keyword)) return true;
-      if (target.title.toLowerCase().includes(keyword)) return true;
-      if (target.url.toLowerCase().includes(keyword)) return true;
-
-      return false;
-    });
-  });
-}
-
-async function findTarget(keyword, options = {}) {
-  const targets = await findTargets(keyword, options);
-
-  return targets[0] ?? null;
-}
-
-async function activateTarget(targetId, options = {}) {
-  const { host, port } = getCdpOptions(options);
-
-  await CDP.Activate({
-    host,
-    port,
-    id: targetId,
-  });
-}
-
-async function reloadTarget(targetId, options = {}) {
-  const { host, port } = getCdpOptions(options);
-
-  const client = await CDP({
-    host,
-    port,
-    target: targetId,
-  });
-
-  try {
-    await client.Page.reload({
-      ignoreCache: true,
-    });
-  } finally {
-    await client.close();
-  }
-}
-
-async function openTarget(url, options = {}) {
-  const { host, port } = getCdpOptions(options);
-
-  const target = await CDP.New({
-    host,
-    port,
-    url,
-  });
-
-  return normalizeTarget(target);
-}
-
-async function closeTarget(targetId, options = {}) {
-  const { host, port } = getCdpOptions(options);
-
-  await CDP.Close({
-    host,
-    port,
-    id: targetId,
-  });
 }
 
 // -----------------------------------------------------------------------------
@@ -737,7 +654,8 @@ async function waitChromeReady(options = {}) {
  * 启动带 CDP 调试端口的 Chrome。
  */
 async function launchChrome(options = {}) {
-  const { host, port, userDataDir } = getCdpOptions(options);
+  const { host, port } = getCdpOptions(options);
+  const userDataDir = options.userDataDir ?? defaultUserDataDir;
   const chromeBin = await checkChromeBin(getChromeBin(options));
 
   const args = [

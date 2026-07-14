@@ -1,11 +1,208 @@
+/**
+ * CDP mouse interaction utilities.
+ *
+ * Provides human-like mouse movement, single-click, and
+ * double-click operations for elements in a Chrome Target.
+ *
+ * Mouse positions are tracked separately by CDP address,
+ * port, and Target ID. Associated state can be removed
+ * when the corresponding CDP Client is closed.
+ *
+ * Closing a Client does not automatically remove its mouse
+ * state. Pass removeMouseState to closeClients when cleanup
+ * is required.
+ */
+
+import { getCdpOptions } from "./target.js";
 import { getClient } from "./client.js";
-import { scrollIntoView, getElementBox, waitClickable } from "./dom.js";
+import { scrollIntoView, getElementBox, waitElementClickable } from "./dom.js";
+
+const mouseStateMap = new Map();
+
+// -----------------------------------------------------------------------------
+// Public API
+// -----------------------------------------------------------------------------
 
 /**
- * ----------------------------------------------------------------------------
- * Base Utils
- * ----------------------------------------------------------------------------
+ * CDP mouse interaction utilities.
+ *
+ * Provides human-like mouse movement, single-click, and
+ * double-click operations for elements in a Chrome Target.
+ *
+ * Mouse positions are tracked separately by CDP address,
+ * port, and Target ID. Associated state can be removed
+ * when the corresponding CDP Client is closed.
+ *
+ * Closing a Client does not automatically remove its mouse
+ * state. Pass removeMouseState to closeClients when cleanup
+ * is required.
  */
+export function removeMouseState(targetId, options = {}) {
+  const key = getMouseStateKey(targetId, options);
+
+  return mouseStateMap.delete(key);
+}
+
+/**
+ * Move the mouse to the specified viewport coordinates.
+ *
+ * The mouse follows a generated multi-point path with
+ * variable delays to simulate natural movement.
+ *
+ * The final position is cached for subsequent movements.
+ *
+ * @param {string} targetId
+ * Target ID where the mouse should be moved.
+ *
+ * @param {number} x
+ * Destination X coordinate relative to the viewport.
+ *
+ * @param {number} y
+ * Destination Y coordinate relative to the viewport.
+ *
+ * @param {Object} [options]
+ * CDP connection and mouse event options.
+ *
+ * @returns {Promise<boolean>}
+ * Resolves to true after the movement is complete.
+ */
+export async function mouseMove(targetId, x, y, options = {}) {
+  const state = getMouseState(targetId, options);
+
+  const p1 = {
+    x: state.x,
+    y: state.y,
+  };
+
+  const p2 = { x, y };
+
+  const points = getMouseMovePoints(p1, p2);
+  const count = points.length;
+  const totalTime = random(500, 1000);
+  const delays = getMouseMoveIntervals(totalTime, count - 1);
+
+  for (let i = 0; i < count; i++) {
+    const p = points[i];
+
+    await mouseMoveTo(targetId, p.x, p.y, options);
+
+    if (i < count - 1) {
+      await sleep(delays[i]);
+    }
+  }
+
+  return true;
+}
+
+
+/**
+ * Click an element using simulated mouse movement.
+ *
+ * The element is scrolled into view and checked for
+ * clickability before its interaction point is calculated.
+ * The mouse then moves to the element and performs a
+ * single click with small randomized delays and jitter.
+ *
+ * @param {string} targetId
+ * Target ID containing the element.
+ *
+ * @param {string} selector
+ * CSS selector of the element to click.
+ *
+ * @param {Object} [options]
+ * CDP connection, DOM polling, and mouse event options.
+ *
+ * @returns {Promise<boolean>}
+ * Resolves to true after the click is complete.
+ */
+export async function click(targetId, selector, options = {}) {
+  await scrollIntoView(targetId, selector, options);
+  await waitElementClickable(targetId, selector, options);
+
+  const box = await getElementBox(targetId, selector, options);
+  const { x, y } = getElementInteractionPoint(box);
+
+  // move 到目标点（带轨迹系统）
+  await mouseMove(targetId, x, y, options);
+  await sleep(random(80, 220));
+
+  let p = getJitterPoint(x, y);
+
+  await mouseDownAt(targetId, p.x, p.y, options);
+  await sleep(random(30, 120));
+  await mouseUpAt(targetId, p.x, p.y, options);
+  await sleep(random(50, 180));
+
+  return true;
+}
+
+/**
+ * Double-click an element using simulated mouse movement.
+ *
+ * The element is scrolled into view and checked for
+ * clickability before its interaction point is calculated.
+ * Two clicks are then dispatched with the appropriate CDP
+ * click counts and randomized timing.
+ *
+ * @param {string} targetId
+ * Target ID containing the element.
+ *
+ * @param {string} selector
+ * CSS selector of the element to double-click.
+ *
+ * @param {Object} [options]
+ * CDP connection, DOM polling, and mouse event options.
+ *
+ * @returns {Promise<boolean>}
+ * Resolves to true after the double-click is complete.
+ */
+export async function doubleClick(targetId, selector, options = {}) {
+  await scrollIntoView(targetId, selector, options);
+  await waitElementClickable(targetId, selector, options);
+
+  const box = await getElementBox(targetId, selector, options);
+  const { x, y } = getElementInteractionPoint(box);
+
+  // move 到目标点（带轨迹系统）
+  await mouseMove(targetId, x, y, options);
+  await sleep(random(80, 220));
+
+  const p1 = getJitterPoint(x, y);
+
+  await mouseDownAt(targetId, p1.x, p1.y, {
+    ...options,
+    buttons: 1,
+    clickCount: 1,
+  });
+  await sleep(random(30, 120));
+  await mouseUpAt(targetId, p1.x, p1.y, {
+    ...options,
+    buttons: 0,
+    clickCount: 1,
+  });
+
+  await sleep(random(80, 180));
+
+  const p2 = getJitterPoint(x, y);
+
+  await mouseDownAt(targetId, p2.x, p2.y, {
+    ...options,
+    buttons: 1,
+    clickCount: 2,
+  });
+  await sleep(random(30, 120));
+  await mouseUpAt(targetId, p2.x, p2.y, {
+    ...options,
+    buttons: 0,
+    clickCount: 2,
+  });
+
+  return true;
+}
+
+// -----------------------------------------------------------------------------
+// Private Helpers
+// -----------------------------------------------------------------------------
 
 function random(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -15,23 +212,41 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/**
- * ----------------------------------------------------------------------------
- * Mouse State
- * ----------------------------------------------------------------------------
- */
+function getMouseStateKey(targetId, options = {}) {
+  const { host, port } = getCdpOptions(options);
 
-const mouseState = {
-  x: 0,
-  y: 0,
-  lastUpdate: 0,
-};
+  return `${host}:${port}:${targetId}`;
+}
 
-/**
- * ----------------------------------------------------------------------------
- * Mouse Primitives (CDP)
- * ----------------------------------------------------------------------------
- */
+function getMouseState(targetId, options = {}) {
+  const key = getMouseStateKey(targetId, options);
+
+  let state = mouseStateMap.get(key);
+
+  if (!state) {
+    state = {
+      x: 0,
+      y: 0,
+      lastUpdate: 0,
+    };
+
+    mouseStateMap.set(key, state);
+  }
+
+  return state;
+}
+
+function updateMouseState(targetId, x, y, options = {}) {
+  const state = getMouseState(targetId, options);
+
+  state.x = x;
+  state.y = y;
+  state.lastUpdate = Date.now();
+}
+
+// -----------------------------------------------------------------------------
+// Private Helpers: Mouse Primitives (CDP)
+// -----------------------------------------------------------------------------
 
 async function mouseMoveTo(targetId, x, y, options = {}) {
   const { Input } = await getClient(targetId, options);
@@ -44,9 +259,7 @@ async function mouseMoveTo(targetId, x, y, options = {}) {
     modifiers: options.modifiers ?? 0,
   });
 
-  mouseState.x = x;
-  mouseState.y = y;
-  mouseState.lastUpdate = Date.now();
+  updateMouseState(targetId, x, y, options);
 
   return true;
 }
@@ -64,6 +277,8 @@ async function mouseDownAt(targetId, x, y, options = {}) {
     clickCount: options.clickCount ?? 1,
   });
 
+  updateMouseState(targetId, x, y, options);
+
   return true;
 }
 
@@ -79,6 +294,8 @@ async function mouseUpAt(targetId, x, y, options = {}) {
     modifiers: options.modifiers ?? 0,
     clickCount: options.clickCount ?? 1,
   });
+
+  updateMouseState(targetId, x, y, options);
 
   return true;
 }
@@ -101,14 +318,14 @@ async function wheelAt(targetId, x, y, deltaX = 0, deltaY = 0, options = {}) {
     modifiers: options.modifiers ?? 0,
   });
 
+  updateMouseState(targetId, x, y, options);
+
   return true;
 }
 
-/**
- * ----------------------------------------------------------------------------
- * Human Mouse Helpers
- * ----------------------------------------------------------------------------
- */
+// -----------------------------------------------------------------------------
+// Private Helpers: Human Mouse Helpers
+// -----------------------------------------------------------------------------
 
 function distance(p1, p2) {
   return Math.hypot(p2.x - p1.x, p2.y - p1.y);
@@ -192,107 +409,4 @@ function getElementInteractionPoint(box) {
   const y = box.centerY + gaussian() * jitterRadius;
 
   return { x, y, box };
-}
-
-/**
- * ----------------------------------------------------------------------------
- * Human Mouse Actions
- * ----------------------------------------------------------------------------
- */
-
-async function mouseMove(targetId, x, y, options = {}) {
-  const p1 = {
-    x: mouseState.x,
-    y: mouseState.y,
-  };
-  const p2 = { x, y };
-
-  const points = getMouseMovePoints(p1, p2);
-  const count = points.length;
-  const totalTime = random(500, 1000);
-  const delays = getMouseMoveIntervals(totalTime, count - 1);
-
-  for (let i = 0; i < count; i++) {
-    const p = points[i];
-    await mouseMoveTo(targetId, p.x, p.y, options);
-
-    if (i < count - 1) {
-      await sleep(delays[i]);
-    }
-  }
-
-  return true;
-}
-
-async function clickAt(targetId, x, y, options = {}) {
-  // move 到目标点（带轨迹系统）
-  await mouseMove(targetId, x, y, options);
-  await sleep(random(80, 220));
-
-  let p = getJitterPoint(x, y);
-
-  await mouseDownAt(targetId, p.x, p.y, options);
-  await sleep(random(30, 120));
-  await mouseUpAt(targetId, p.x, p.y, options);
-  await sleep(random(50, 180));
-
-  return true;
-}
-
-async function doubleClickAt(targetId, x, y, options = {}) {
-  // move 到目标点（带轨迹系统）
-  await mouseMove(targetId, x, y, options);
-  await sleep(random(80, 220));
-
-  const p1 = getJitterPoint(x, y);
-
-  await mouseDownAt(targetId, p1.x, p1.y, {
-    ...options,
-    buttons: 1,
-    clickCount: 1,
-  });
-  await sleep(random(30, 120));
-  await mouseUpAt(targetId, p1.x, p1.y, {
-    ...options,
-    buttons: 0,
-    clickCount: 1,
-  });
-
-  await sleep(random(80, 180));
-
-  const p2 = getJitterPoint(x, y);
-
-  await mouseDownAt(targetId, p2.x, p2.y, {
-    ...options,
-    buttons: 1,
-    clickCount: 2,
-  });
-  await sleep(random(30, 120));
-  await mouseUpAt(targetId, p2.x, p2.y, {
-    ...options,
-    buttons: 0,
-    clickCount: 2,
-  });
-
-  return true;
-}
-
-export async function click(targetId, selector, options = {}) {
-  await scrollIntoView(targetId, selector, options);
-  await waitClickable(targetId, selector, options);
-
-  const box = await getElementBox(targetId, selector, options);
-  const { x, y } = getElementInteractionPoint(box);
-
-  return clickAt(targetId, x, y, options);
-}
-
-export async function doubleClick(targetId, selector, options = {}) {
-  await scrollIntoView(targetId, selector, options);
-  await waitClickable(targetId, selector, options);
-
-  const box = await getElementBox(targetId, selector, options);
-  const { x, y } = getElementInteractionPoint(box);
-
-  return doubleClickAt(targetId, x, y, options);
 }
