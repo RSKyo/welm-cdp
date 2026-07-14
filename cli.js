@@ -4,7 +4,7 @@ import { run } from "./infra/runner.js";
 import { log } from "./infra/log.js";
 import { COMMAND_GROUPS } from "./cmd/_cmd.js";
 
-import { closeCdpClients } from "./cdp/lifecycle.js";
+import { closeClients } from "./cdp/client.js";
 
 const json = process.argv.includes("--json");
 const stack = process.argv.includes("--stack");
@@ -12,7 +12,7 @@ const stack = process.argv.includes("--stack");
 const runOptions = {
   json,
   stack,
-  cleanup: closeCdpClients,
+  cleanup: closeClients,
   reporter: log,
 };
 

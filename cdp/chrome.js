@@ -10,8 +10,15 @@ const defaultPort = 9222;
 const defaultTargetType = "page";
 const defaultUserDataDir = `${process.env.HOME}/.local/share/welm/chrome-profile`;
 
+const defaultChromeBinDarwin =
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+const defaultChromeBinLinux = "google-chrome"; // need absolute path, e.g. /usr/bin/google-chrome
+const defaultChromeBinWin32 = "chrome.exe"; // need absolute path, e.g. C:\Program Files\Google\Chrome\Application\chrome.exe
+
 const defaultChromeReadyTimeout = 15000;
 const defaultChromeReadyInterval = 200;
+const defaultPageReadyTimeout = 30000;
+const defaultPageReadyInterval = 200;
 
 // -----------------------------------------------------------------------------
 // Public API: Chrome
@@ -35,17 +42,7 @@ export async function ensureChrome(options = {}) {
     return launchInfo;
   }
 
-  const { host, port, targetType, userDataDir } = getCdpOptions(options);
-  const chromeBin = await checkChromeBin(options.chromeBin ?? getChromeBin());
-
-  return {
-    host,
-    port,
-    targetType,
-    userDataDir,
-    chromeBin,
-    launched: false,
-  };
+  return normalizeChromeInfo(false, options);
 }
 
 // -----------------------------------------------------------------------------
@@ -119,9 +116,7 @@ export async function openChromePage(url, options = {}) {
 }
 
 export async function ensureChromePage(url, options = {}) {
-  const keyword = options.keyword ?? url;
-
-  const target = await findChromePage(keyword, options);
+  const target = await findChromePage(url, options);
 
   if (target) {
     return target;
@@ -150,8 +145,22 @@ function getCdpOptions(options = {}) {
   return {
     host: options.cdpHost ?? defaultHost,
     port: options.cdpPort ?? defaultPort,
-    targetType: options.cdpTargetType ?? defaultTargetType,
-    userDataDir: options.cdpUserDataDir ?? defaultUserDataDir,
+    targetType: options.targetType ?? defaultTargetType,
+    userDataDir: options.userDataDir ?? defaultUserDataDir,
+  };
+}
+
+function normalizeChromeInfo(launched = false, options = {}) {
+  const { host, port, targetType, userDataDir } = getCdpOptions(options);
+  const chromeBin = getChromeBin(options);
+
+  return {
+    host,
+    port,
+    targetType,
+    userDataDir,
+    chromeBin,
+    launched,
   };
 }
 
@@ -208,11 +217,13 @@ async function findTargets(keywords, options = {}) {
   });
 
   return targets.filter((target) => {
-    return (
-      search.includes(target.targetId.toLowerCase()) ||
-      search.includes(target.title.toLowerCase()) ||
-      search.includes(target.url.toLowerCase())
-    );
+    return search.some((keyword) => {
+      if (target.targetId.toLowerCase().includes(keyword)) return true;
+      if (target.title.toLowerCase().includes(keyword)) return true;
+      if (target.url.toLowerCase().includes(keyword)) return true;
+
+      return false;
+    });
   });
 }
 
@@ -279,13 +290,14 @@ async function closeTarget(targetId, options = {}) {
 /**
  * 获取当前平台默认的 Chrome 可执行文件路径。
  */
-function getChromeBin() {
+function getChromeBin(options = {}) {
   return (
+    options.chromeBin ||
     process.env.CHROME_BIN ||
     {
-      darwin: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-      linux: "google-chrome",
-      win32: "chrome.exe",
+      darwin: defaultChromeBinDarwin,
+      linux: defaultChromeBinLinux,
+      win32: defaultChromeBinWin32,
     }[process.platform]
   );
 }
@@ -358,7 +370,7 @@ async function waitChromeReady(options = {}) {
  */
 async function launchChrome(options = {}) {
   const { host, port, userDataDir } = getCdpOptions(options);
-  const chromeBin = await checkChromeBin(options.chromeBin ?? getChromeBin());
+  const chromeBin = await checkChromeBin(getChromeBin(options));
 
   const args = [
     `--remote-debugging-address=${host}`,
@@ -375,13 +387,7 @@ async function launchChrome(options = {}) {
 
   child.unref();
 
-  return {
-    host,
-    port,
-    chromeBin,
-    userDataDir,
-    launched: true,
-  };
+  return normalizeChromeInfo(true, options);
 }
 
 /**
@@ -418,23 +424,23 @@ async function waitLeaveAboutBlank(targetId, options = {}) {
 }
 
 /**
- * 等待页面加载完成。
+ * Wait for the page to become ready.
  *
- * 先监听 loadEventFired，
- * 再等待页面离开 about:blank，
- * 最后等待页面 load 事件。
+ * First wait for the page to leave about:blank,
+ * then poll document.readyState.
  *
- * 这样可以避免监听过晚导致错过事件。
+ * The page is considered ready when the state
+ * becomes interactive or complete.
  */
 async function waitPageReady(targetId, options = {}) {
   const { host, port } = getCdpOptions(options);
-  const timeout = options.pageTimeout ?? 30000;
-  const interval = options.interval ?? 200;
+  const timeout = options.pageReadyTimeout ?? defaultPageReadyTimeout;
+  const interval = options.pageReadyInterval ?? defaultPageReadyInterval;
 
   const client = await CDP({
     host,
     port,
-    targetId,
+    target: targetId,
   });
 
   try {

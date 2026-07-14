@@ -13,30 +13,6 @@ function getCdpOptions(options = {}) {
 // Map<clientKey, Promise<CDP.Client>>
 const clientPromiseMap = new Map();
 
-function getClientKey(targetId, options = {}) {
-  const {host,port} = getCdpOptions(options);
-
-  return `${host}:${port}:${targetId}`;
-}
-
-async function createClient(targetId, options = {}) {
-  const host = options.host ?? defaultHost;
-  const port = options.port ?? defaultPort;
-  const clientKey = getClientKey(targetId, options);
-
-  const client = await CDP({
-    host,
-    port,
-    target: targetId,
-  });
-
-  client.on("disconnect", () => {
-    clientPromiseMap.delete(clientKey);
-  });
-
-  return client;
-}
-
 export async function getClient(targetId, options = {}) {
   const clientKey = getClientKey(targetId, options);
 
@@ -55,24 +31,7 @@ export async function getClient(targetId, options = {}) {
   return await clientPromise;
 }
 
-export async function closeClient(targetId, options = {}) {
-  const clientKey = getClientKey(targetId, options);
-
-  const clientPromise = clientPromiseMap.get(clientKey);
-
-  if (!clientPromise) {
-    return;
-  }
-
-  try {
-    const client = await clientPromise;
-    await client.close();
-  } finally {
-    clientPromiseMap.delete(clientKey);
-  }
-}
-
-export async function closeAllClients() {
+export async function closeClients() {
   const clientPromises = [...clientPromiseMap.values()];
 
   clientPromiseMap.clear();
@@ -82,4 +41,28 @@ export async function closeAllClients() {
       clientPromise.then((client) => client.close()).catch(() => {}),
     ),
   );
+}
+
+function getClientKey(targetId, options = {}) {
+  const { host, port } = getCdpOptions(options);
+
+  return `${host}:${port}:${targetId}`;
+}
+
+async function createClient(targetId, options = {}) {
+  const { host, port } = getCdpOptions(options);
+
+  const clientKey = getClientKey(targetId, options);
+
+  const client = await CDP({
+    host,
+    port,
+    target: targetId,
+  });
+
+  client.on("disconnect", () => {
+    clientPromiseMap.delete(clientKey);
+  });
+
+  return client;
 }

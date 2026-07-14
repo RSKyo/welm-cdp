@@ -26,12 +26,12 @@
   },
   "exports": {
     "./chrome": "./cdp/chrome.js",
+    "./client": "./cdp/client.js",
     "./runtime": "./cdp/runtime.js",
     "./dom": "./cdp/dom.js",
     "./input": "./cdp/input.js",
     "./mouse": "./cdp/mouse.js",
     "./screenshot": "./cdp/screenshot.js",
-    "./lifecycle": "./cdp/lifecycle.js",
 
     "./clipboard": "./clipboard/index.js",
     "./fs": "./fs/index.js",
