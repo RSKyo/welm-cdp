@@ -25,7 +25,7 @@
 // - Non-matching parent directories are still traversed.
 //
 // Version: 0.2.0
-// Last modified: 2026-07-07
+// Last modified: 2026-07-16
 // -----------------------------------------------------------------------------
 
 import fs from "node:fs";
@@ -263,22 +263,41 @@ function normalizeScanOptions(options = {}) {
 }
 
 function normalizeExts(exts) {
-  if (!exts) {
+  if (exts == null) {
     return null;
   }
 
-  return exts.map((ext) => {
-    ext = String(ext).toLowerCase();
+  const normalizedExts = Array.isArray(exts) ? exts : [exts];
+
+  const result = normalizedExts.map((ext) => {
+    if (typeof ext !== "string" || ext.trim() === "") {
+      throw new Error("extension must be a non-empty string");
+    }
+
+    ext = ext.trim().toLowerCase();
+
     return ext.startsWith(".") ? ext : `.${ext}`;
   });
+
+  return result.length === 0 ? null : result;
 }
 
 function normalizeKeywords(keywords) {
-  if (!keywords) {
+  if (keywords == null) {
     return null;
   }
 
-  return keywords.map((keyword) => String(keyword).toLowerCase());
+  const normalizedKeywords = Array.isArray(keywords) ? keywords : [keywords];
+
+  const result = normalizedKeywords.map((keyword) => {
+    if (typeof keyword !== "string" || keyword.trim() === "") {
+      throw new Error("keyword must be a non-empty string");
+    }
+
+    return keyword.trim().toLowerCase();
+  });
+
+  return result.length === 0 ? null : result;
 }
 
 function isHiddenPath(filePath) {

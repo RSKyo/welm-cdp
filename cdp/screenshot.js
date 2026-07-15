@@ -1,70 +1,107 @@
-import os from "os";
-import path from "path";
-import fs from "fs/promises";
+// -----------------------------------------------------------------------------
+// cdp/screenshot
+// -----------------------------------------------------------------------------
+// Page screenshot utilities based on the CDP Page domain.
+//
+// Public API:
+// - captureScreenshot(targetId, options)
+//
+// Features:
+// - Capture an entire Chrome page by default.
+// - Capture a specified viewport region.
+// - Read full-page dimensions from page layout metrics.
+// - Capture content beyond the current viewport.
+// - Return screenshot data as a PNG Buffer.
+//
+// Design:
+// - CDP clients are obtained and reused through client.js.
+// - Full-page dimensions prefer CSS content metrics.
+// - Screenshot clip coordinates use CSS pixels.
+// - A default scale factor of 1 is applied when omitted.
+// - This module only captures image data.
+// - Saving files and copying images are handled by callers.
+//
+// Version: 0.1.0
+// Last modified: 2026-07-15
+// -----------------------------------------------------------------------------
 
 import { getClient } from "./client.js";
 
-import { copyImage } from "../utils/image.js";
-
-const defaultScreenshotDir = `${process.env.HOME}/.local/share/welm/screenshot`;
-const defaultFileName = "screenshot-{yyyy}{MM}{dd}-{HH}{mm}{ss}-{SSS}.png";
+// -----------------------------------------------------------------------------
+// Public API
+// -----------------------------------------------------------------------------
 
 /**
- * Validate image file name.
+ * Capture a PNG screenshot from a Chrome target.
+ *
+ * By default, captures the entire page.
+ * If clip is provided, captures the specified viewport region.
+ *
+ * @param {string} targetId
+ * Chrome target ID.
+ *
+ * @param {Object} [options]
+ * Screenshot and CDP options.
+ *
+ * @param {Object} [options.clip]
+ * Screenshot region relative to the viewport.
+ *
+ * @param {number} options.clip.x
+ * Region X coordinate.
+ *
+ * @param {number} options.clip.y
+ * Region Y coordinate.
+ *
+ * @param {number} options.clip.width
+ * Region width.
+ *
+ * @param {number} options.clip.height
+ * Region height.
+ *
+ * @param {number} [options.clip.scale=1]
+ * Screenshot scale factor.
+ *
+ * @returns {Promise<Buffer>}
+ * PNG image data.
  */
-function assertImageFileName(fileName) {
-  const ext = path.extname(fileName).toLowerCase();
+export async function captureScreenshot(targetId, options = {}) {
+  const { Page } = await getClient(targetId, options);
 
-  if (ext !== ".png") {
-    throw new Error(`unsupported image file: ${fileName}`);
+  const clip = options.clip
+    ? {
+        ...options.clip,
+        scale: options.clip.scale ?? 1,
+      }
+    : await getFullPageClip(Page);
+
+  const { data } = await Page.captureScreenshot({
+    format: "png",
+    clip,
+    fromSurface: true,
+    captureBeyondViewport: true,
+    optimizeForSpeed: true,
+  });
+
+  if (typeof data !== "string" || data === "") {
+    throw new Error("missing screenshot data");
   }
+
+  return Buffer.from(data, "base64");
 }
 
-/**
- * Format file name template.
- */
-function formatFileName(template, date = new Date()) {
-  const pad2 = (v) => String(v).padStart(2, "0");
-  const pad3 = (v) => String(v).padStart(3, "0");
-
-  return template
-    .replaceAll("{yyyy}", String(date.getFullYear()))
-    .replaceAll("{MM}", pad2(date.getMonth() + 1))
-    .replaceAll("{dd}", pad2(date.getDate()))
-    .replaceAll("{HH}", pad2(date.getHours()))
-    .replaceAll("{mm}", pad2(date.getMinutes()))
-    .replaceAll("{ss}", pad2(date.getSeconds()))
-    .replaceAll("{SSS}", pad3(date.getMilliseconds()));
-}
+// -----------------------------------------------------------------------------
+// Private Helpers
+// -----------------------------------------------------------------------------
 
 /**
- * Get page layout metrics.
- */
-async function getLayoutMetrics(Page) {
-  const res = await Page.getLayoutMetrics();
-
-  return {
-    layout: {
-      viewport: res.layoutViewport ?? null,
-      visualViewport: res.visualViewport ?? null,
-      contentSize: res.contentSize ?? null,
-    },
-
-    css: {
-      layoutViewport: res.cssLayoutViewport ?? null,
-      visualViewport: res.cssVisualViewport ?? null,
-      contentSize: res.cssContentSize ?? null,
-    },
-  };
-}
-
-/**
- * Get full-page screenshot clip region.
+ * Get the full-page screenshot clip region.
  */
 async function getFullPageClip(Page) {
-  const metrics = await getLayoutMetrics(Page);
+  const metrics = await Page.getLayoutMetrics();
 
-  const size = metrics.css.contentSize ?? metrics.layout.contentSize;
+  const size =
+    metrics.cssContentSize ??
+    metrics.contentSize;
 
   if (!size) {
     throw new Error("failed to get page content size");
@@ -75,86 +112,6 @@ async function getFullPageClip(Page) {
     y: 0,
     width: Math.ceil(size.width),
     height: Math.ceil(size.height),
+    scale: 1,
   };
-}
-
-/**
- * Copy a base64 image to the system clipboard.
- */
-async function copyImageBase64(base64, options = {}) {
-  const fileName = options.fileName ?? defaultFileName;
-
-  assertImageFileName(fileName);
-
-  const finalFileName = formatFileName(fileName);
-
-  const filePath = path.join(os.tmpdir(), finalFileName);
-
-  try {
-    await fs.writeFile(filePath, Buffer.from(base64, "base64"));
-    await copyImage(filePath);
-  } finally {
-    await fs.rm(filePath, {
-      force: true,
-    });
-  }
-}
-
-/**
- * Save a base64 image to a file.
- */
-async function saveImageBase64(base64, options = {}) {
-  const dir = options.dir ?? defaultScreenshotDir;
-  const fileName = options.fileName ?? defaultFileName;
-
-  assertImageFileName(fileName);
-
-  const finalDir = path.resolve(dir);
-  await fs.mkdir(finalDir, {
-    recursive: true,
-  });
-
-  const finalFileName = formatFileName(fileName);
-
-  const filePath = path.join(finalDir, finalFileName);
-
-  await fs.writeFile(filePath, Buffer.from(base64, "base64"));
-
-  return filePath;
-}
-
-/**
- * Capture a page screenshot.
- *
- * By default, captures the entire page.
- * If clip is provided, captures the specified region.
- *
- * Returns:
- *   Base64-encoded PNG image.
- */
-export async function captureScreenshot(targetId, options = {}) {
-  const { Page } = await getClient(targetId, options);
-
-  const res = await Page.captureScreenshot({
-    format: "png",
-    clip: options.clip ?? (await getFullPageClip(Page)),
-
-    fromSurface: true,
-    captureBeyondViewport: true,
-    optimizeForSpeed: true,
-  });
-
-  const base64 = res.data ?? "";
-
-  // copy to clipboard
-  if (options.copy) {
-    await copyImageBase64(base64, options);
-  }
-
-  // save to file
-  if (options.save) {
-    await saveImageBase64(base64, options);
-  }
-
-  return base64;
 }

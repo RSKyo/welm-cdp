@@ -10,13 +10,13 @@
     "start": "node ./cli.js",
     "test": "node --test",
 
-    "mac:compile:dialog": "swiftc dialog/dialog.swift -o dialog/dialog.bin && chmod +x dialog/dialog.bin",
+    "build:macos:dialog": "swiftc dialog/dialog.swift -o dialog/dialog.bin",
 
-    "mac:compile:file-clipboard": "swiftc clipboard/file-clipboard.swift -o clipboard/file-clipboard.bin && chmod +x clipboard/file-clipboard.bin",
-    "mac:compile:image-clipboard": "swiftc clipboard/image-clipboard.swift -o clipboard/image-clipboard.bin && chmod +x clipboard/image-clipboard.bin",
-    "mac:compile:clipboard": "npm run mac:compile:file-clipboard && npm run mac:compile:image-clipboard",
+    "build:macos:file-clipboard": "swiftc clipboard/file-clipboard.swift -o clipboard/file-clipboard.bin",
+    "build:macos:image-clipboard": "swiftc clipboard/image-clipboard.swift -o clipboard/image-clipboard.bin",
+    "build:macos:clipboard": "npm run build:macos:file-clipboard && npm run build:macos:image-clipboard",
 
-    "mac:compile": "npm run mac:compile:dialog && npm run mac:compile:clipboard"
+    "build:macos": "npm run build:macos:dialog && npm run build:macos:clipboard"
   },
   "keywords": [],
   "author": "",
@@ -26,6 +26,7 @@
   },
   "exports": {
     "./chrome": "./cdp/chrome.js",
+    "./target": "./cdp/target.js",
     "./client": "./cdp/client.js",
     "./runtime": "./cdp/runtime.js",
     "./dom": "./cdp/dom.js",

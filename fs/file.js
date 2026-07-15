@@ -34,7 +34,7 @@
 // - Write methods create missing parent directories automatically.
 //
 // Version: 0.1.0
-// Last modified: 2026-07-07
+// Last modified: 2026-07-16
 // -----------------------------------------------------------------------------
 
 import fs from "node:fs";
@@ -72,6 +72,10 @@ import nodePath from "node:path";
 export function moveFileTo(filePath, toFilePath, options = {}) {
   assertExistingFile(filePath, "filePath");
   assertFileIfExists(toFilePath, "toFilePath");
+
+  if (nodePath.resolve(filePath) === nodePath.resolve(toFilePath)) {
+    return filePath;
+  }
 
   const { overwrite = false } = options;
 
@@ -133,6 +137,10 @@ export function moveFileTo(filePath, toFilePath, options = {}) {
 export function copyFileTo(filePath, toFilePath, options = {}) {
   assertExistingFile(filePath, "filePath");
   assertFileIfExists(toFilePath, "toFilePath");
+
+  if (nodePath.resolve(filePath) === nodePath.resolve(toFilePath)) {
+    return filePath;
+  }
 
   const { overwrite = false } = options;
 
@@ -289,11 +297,15 @@ export function readFileText(filePath, options = {}) {
  */
 export function writeFileText(filePath, text, options = {}) {
   assertFileIfExists(filePath, "filePath");
-  assertNonBlankString(text, "text");
+
+  // allow empty string, but not null or undefined
+  if (typeof text !== "string") {
+    throw new Error("text must be a string");
+  }
 
   const { encoding = "utf8", overwrite = false } = options;
 
-  return writeFile(filePath, String(text), { encoding, overwrite });
+  return writeFile(filePath, text, { encoding, overwrite });
 }
 
 /**
@@ -509,7 +521,7 @@ function assertBuffer(value, fieldName = "value") {
 }
 
 function assertNonBlankString(value, fieldName = "value") {
-  if (typeof value !== "string" || value.length === 0) {
+  if (typeof value !== "string" || value.length === 0 || value.trim().length === 0) {
     throw new Error(`${fieldName} must be a non-blank string`);
   }
 

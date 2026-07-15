@@ -2,9 +2,10 @@ import { assertNonBlankString, assertHttpUrl } from "../infra/assert.js";
 import {
   ensureChrome,
   listChromePages,
-  getChromePage,
   findChromePage,
+  findChromePages,
   activateChromePage,
+  reloadChromePage,
   openChromePage,
   ensureChromePage,
   closeChromePage,
@@ -12,223 +13,252 @@ import {
 
 const CDP_OPTIONS = "--host --port";
 const CHROME_OPTIONS = "--chrome-bin --user-data-dir";
+const CHROME_READY_OPTIONS =
+  "--chrome-ready-timeout --chrome-ready-interval";
 const PAGE_OPTIONS = "--target-type";
+const PAGE_READY_OPTIONS = "--page-ready-timeout --page-ready-interval";
 
 /**
- * Chrome CLI 命令注册表。
+ * Chrome CLI command registry.
  *
  * chrome ready
  * chrome list
- * chrome get
  * chrome find
+ * chrome find-all
  * chrome activate
+ * chrome reload
  * chrome open
  * chrome ensure
  * chrome close
  */
 export const CHROME_COMMANDS = {
-  ready: {
+  "ready": {
     handler: cmd_ensureChrome,
     usage: "chrome ready [options]",
     description: "Ensure Chrome and CDP service ready",
-    options: `${CDP_OPTIONS} ${CHROME_OPTIONS}`,
+    options: `${CDP_OPTIONS} ${CHROME_OPTIONS} ${CHROME_READY_OPTIONS}`,
   },
 
-  list: {
+  "list": {
     handler: cmd_listChromePages,
     usage: "chrome list [options]",
     description: "List Chrome pages",
     options: `${CDP_OPTIONS} ${PAGE_OPTIONS}`,
   },
 
-  get: {
-    handler: cmd_getChromePage,
-    usage: "chrome get <targetId> [options]",
-    description: "Get Chrome page",
-    options: `${CDP_OPTIONS} ${PAGE_OPTIONS}`,
-  },
-
-  find: {
+  "find": {
     handler: cmd_findChromePage,
     usage: "chrome find <keyword> [options]",
-    description: "Find Chrome page",
+    description: "Find the first matching Chrome page",
     options: `${CDP_OPTIONS} ${PAGE_OPTIONS}`,
   },
 
-  activate: {
+  "find-all": {
+    handler: cmd_findChromePages,
+    usage: "chrome find-all <keyword...> [options]",
+    description: "Find all matching Chrome pages",
+    options: `${CDP_OPTIONS} ${PAGE_OPTIONS}`,
+  },
+
+  "activate": {
     handler: cmd_activateChromePage,
-    usage: "chrome activate <targetId> [options]",
-    description: "Activate Chrome page",
+    usage: "chrome activate <keyword> [options]",
+    description: "Activate the first matching Chrome page",
     options: `${CDP_OPTIONS} ${PAGE_OPTIONS}`,
   },
 
-  open: {
+  "reload": {
+    handler: cmd_reloadChromePage,
+    usage: "chrome reload <keyword> [options]",
+    description: "Reload the first matching Chrome page",
+    options: `${CDP_OPTIONS} ${PAGE_OPTIONS} ${PAGE_READY_OPTIONS}`,
+  },
+
+  "open": {
     handler: cmd_openChromePage,
     usage: "chrome open <url> [options]",
     description: "Open Chrome page",
-    options: CDP_OPTIONS,
+    options: `${CDP_OPTIONS} ${PAGE_OPTIONS} ${PAGE_READY_OPTIONS}`,
   },
 
-  ensure: {
+  "ensure": {
     handler: cmd_ensureChromePage,
     usage: "chrome ensure <url> [options]",
     description: "Ensure Chrome page",
-    options: `--keyword ${CDP_OPTIONS} ${PAGE_OPTIONS}`,
+    options: `${CDP_OPTIONS} ${PAGE_OPTIONS} ${PAGE_READY_OPTIONS}`,
   },
 
-  close: {
+  "close": {
     handler: cmd_closeChromePage,
-    usage: "chrome close <targetId> [options]",
-    description: "Close Chrome page",
+    usage: "chrome close <keyword...> [options]",
+    description: "Close all matching Chrome pages",
     options: `${CDP_OPTIONS} ${PAGE_OPTIONS}`,
   },
 };
 
-/**
- * ----------------------------------------------------------------------------
- * CLI 命令实现
- * ----------------------------------------------------------------------------
- */
+// -----------------------------------------------------------------------------
+// CLI Commands
+// -----------------------------------------------------------------------------
 
 /**
- * 确保 Chrome 与 CDP 服务已就绪。
+ * Ensure Chrome and the CDP service are ready.
  */
 export async function cmd_ensureChrome({ options } = {}) {
-  const launchInfo = await ensureChrome(options);
+  const chrome = await ensureChrome(options);
 
-  if (launchInfo.launched) {
+  if (chrome.launched) {
     const { reporter } = options;
 
     reporter?.info?.(
-      `CDP endpoint: http://${launchInfo.host}:${launchInfo.port}`,
+      `CDP endpoint: http://${chrome.host}:${chrome.port}`,
       options,
     );
+    reporter?.info?.(`Using Chrome executable: ${chrome.chromeBin}`, options);
     reporter?.info?.(
-      `Using Chrome executable: ${launchInfo.chromeBin}`,
-      options,
-    );
-    reporter?.info?.(
-      `Using Chrome user data dir: ${launchInfo.userDataDir}`,
+      `Using Chrome user data dir: ${chrome.userDataDir}`,
       options,
     );
   }
 
-  return launchInfo;
+  return chrome;
 }
 
 /**
- * 获取所有 Chrome 页面。
+ * List Chrome pages.
  */
 export async function cmd_listChromePages({ options } = {}) {
-  const targets = await listChromePages(options);
+  const pages = await listChromePages(options);
 
-  const { reporter } = options;
+  reportPages(pages, options);
 
-  const total = targets.length;
-  targets.forEach((target, index) => {
-    reporter?.info?.(
-      `(${index + 1}/${total}) ${target.targetId} ${target.title}`,
-      options,
-    );
-  });
-
-  return targets;
+  return pages;
 }
 
 /**
- * 获取指定 Chrome 页面。
- */
-export async function cmd_getChromePage({ argv, options } = {}) {
-  const [targetId] = argv;
-  assertNonBlankString(targetId, "targetId");
-
-  const target = await getChromePage(targetId, options);
-
-  const { reporter } = options;
-  reporter?.info?.(`${target.targetId} ${target.title}`, options);
-
-  return target;
-}
-
-/**
- * 根据关键字查找 Chrome 页面。
+ * Find the first Chrome page matching a keyword.
  */
 export async function cmd_findChromePage({ argv, options } = {}) {
   const [keyword] = argv;
   assertNonBlankString(keyword, "keyword");
 
-  const target = await findChromePage(keyword, options);
+  const page = await findChromePage(keyword, options);
 
-  const { reporter } = options;
-
-  if (target) {
-    reporter?.info?.(`${target.targetId} ${target.title}`, options);
-  } else {
-    reporter?.warn?.(
-      `No matching Chrome page found for keyword: ${keyword}`,
-      options,
-    );
+  if (page) {
+    reportPage(page, options);
   }
 
-  return target;
+  return page;
 }
 
 /**
- * 激活 Chrome 页面。
+ * Find Chrome pages matching one or more keywords.
+ */
+export async function cmd_findChromePages({ argv, options } = {}) {
+  assertKeywords(argv);
+
+  const pages = await findChromePages(argv, options);
+
+  reportPages(pages, options);
+
+  return pages;
+}
+
+/**
+ * Activate the first Chrome page matching a keyword.
  */
 export async function cmd_activateChromePage({ argv, options } = {}) {
-  const [targetId] = argv;
-  assertNonBlankString(targetId, "targetId");
+  const [keyword] = argv;
+  assertNonBlankString(keyword, "keyword");
 
-  const target = await activateChromePage(targetId, options);
+  const page = await activateChromePage(keyword, options);
 
-  const { reporter } = options;
-  reporter?.info?.(`${target.targetId} ${target.title}`, options);
+  reportPage(page, options);
 
-  return target;
+  return page;
 }
 
 /**
- * 新建 Chrome 页面。
+ * Reload the first Chrome page matching a keyword.
+ */
+export async function cmd_reloadChromePage({ argv, options } = {}) {
+  const [keyword] = argv;
+  assertNonBlankString(keyword, "keyword");
+
+  const page = await reloadChromePage(keyword, options);
+
+  reportPage(page, options);
+
+  return page;
+}
+
+/**
+ * Open a new Chrome page.
  */
 export async function cmd_openChromePage({ argv, options } = {}) {
   const [url] = argv;
   assertHttpUrl(url, "url");
 
-  const target = await openChromePage(url, options);
+  const page = await openChromePage(url, options);
 
-  const { reporter } = options;
-  reporter?.info?.(`${target.targetId} ${target.title}`, options);
+  reportPage(page, options);
 
-  return target;
+  return page;
 }
 
 /**
- * 查找或打开 Chrome 页面。
+ * Find or open a Chrome page.
  */
 export async function cmd_ensureChromePage({ argv, options } = {}) {
   const [url] = argv;
   assertHttpUrl(url, "url");
 
-  const target = await ensureChromePage(url, options);
+  const page = await ensureChromePage(url, options);
 
-  const { reporter } = options;
-  reporter?.info?.(`${target.targetId} ${target.title}`, options);
+  reportPage(page, options);
 
-  return target;
+  return page;
 }
 
 /**
- * 关闭 Chrome 页面。
+ * Close all Chrome pages matching one or more keywords.
  */
 export async function cmd_closeChromePage({ argv, options } = {}) {
-  const [targetId] = argv;
-  assertNonBlankString(targetId, "targetId");
+  assertKeywords(argv);
 
-  const target = await closeChromePage(targetId, options);
+  const closed = await closeChromePage(argv, options);
 
-  const { reporter } = options;
-  reporter?.info?.(`${target.targetId} ${target.title}`, options);
+  options.reporter?.info?.("Matching Chrome pages closed", options);
 
-  return target;
+  return closed;
+}
+
+// -----------------------------------------------------------------------------
+// Private Helpers
+// -----------------------------------------------------------------------------
+
+function assertKeywords(keywords) {
+  if (!Array.isArray(keywords) || keywords.length === 0) {
+    throw new Error("keywords is required");
+  }
+
+  keywords.forEach((keyword, index) => {
+    assertNonBlankString(keyword, `keywords[${index}]`);
+  });
+
+  return keywords;
+}
+
+function reportPage(page, options = {}) {
+  options.reporter?.info?.(`${page.targetId} ${page.title}`, options);
+}
+
+function reportPages(pages, options = {}) {
+  const total = pages.length;
+
+  pages.forEach((page, index) => {
+    options.reporter?.info?.(
+      `(${index + 1}/${total}) ${page.targetId} ${page.title}`,
+      options,
+    );
+  });
 }

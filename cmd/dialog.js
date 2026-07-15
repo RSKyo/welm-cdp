@@ -1,4 +1,9 @@
-import { selectFolder, selectFile, selectFiles, selectSaveFile } from "../dialog/dialog.js";
+import {
+  selectFolder,
+  selectFile,
+  selectFiles,
+  selectSavePath,
+} from "../dialog/dialog.js";
 
 export const DIALOG_COMMANDS = {
   folder: {
@@ -20,48 +25,68 @@ export const DIALOG_COMMANDS = {
   },
 
   save: {
-    handler: cmd_selectSaveFile,
+    handler: cmd_selectSavePath,
     usage: "dialog save",
-    description: "Select a save file",
+    description: "Select a save path",
   },
 };
 
-export async function cmd_selectFolder({ argv, options } = {}) {
-  const folder = await selectFolder(options);
-
+export async function cmd_selectFolder({ options = {} } = {}) {
+  const folderPath = await selectFolder(options);
   const { reporter } = options;
-  reporter?.info?.(`Selected folder: ${folder}`, options);
 
-  return folder;
-}
-
-export async function cmd_selectFile({ argv, options } = {}) {
-  const file = await selectFile(options);
-
-  const { reporter } = options;
-  reporter?.info?.(`Selected file: ${file}`, options);
-
-  return file;
-}
-
-export async function cmd_selectFiles({ argv, options } = {}) {
-  const files = await selectFiles(options);
-
-  const { reporter } = options;
-  reporter?.info?.(`Selected ${files.length} file(s)`, options);
-
-  for (const file of files) {
-    reporter?.info?.(`Selected file: ${file}`, options);
+  if (folderPath === null) {
+    reporter?.info?.("Folder selection cancelled", options);
+    return null;
   }
 
-  return files;
+  reporter?.info?.(`Selected folder: ${folderPath}`, options);
+
+  return folderPath;
 }
 
-export async function cmd_selectSaveFile({ argv, options } = {}) {
-  const file = await selectSaveFile(options);
-
+export async function cmd_selectFile({ options = {} } = {}) {
+  const filePath = await selectFile(options);
   const { reporter } = options;
-  reporter?.info?.(`Selected save file: ${file}`, options);
 
-  return file;
+  if (filePath === null) {
+    reporter?.info?.("File selection cancelled", options);
+    return null;
+  }
+
+  reporter?.info?.(`Selected file: ${filePath}`, options);
+
+  return filePath;
+}
+
+export async function cmd_selectFiles({ options = {} } = {}) {
+  const filePaths = await selectFiles(options);
+  const { reporter } = options;
+
+  if (filePaths === null) {
+    reporter?.info?.("File selection cancelled", options);
+    return null;
+  }
+
+  reporter?.info?.(`Selected ${filePaths.length} file(s)`, options);
+
+  for (const filePath of filePaths) {
+    reporter?.info?.(`Selected file: ${filePath}`, options);
+  }
+
+  return filePaths;
+}
+
+export async function cmd_selectSavePath({ options = {} } = {}) {
+  const filePath = await selectSavePath(options);
+  const { reporter } = options;
+
+  if (filePath === null) {
+    reporter?.info?.("Save path selection cancelled", options);
+    return null;
+  }
+
+  reporter?.info?.(`Selected save path: ${filePath}`, options);
+
+  return filePath;
 }

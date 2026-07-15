@@ -18,7 +18,8 @@ const IMAGE_EXTS = new Set([
 ]);
 
 // Native binaries
-const clipboardBin = assertClipboardBin();
+const clipboardBin =
+  process.platform === "darwin" ? assertClipboardBin() : null;
 
 // #region Public API
 
@@ -63,6 +64,10 @@ function assertImageFile(imagePath) {
     throw new Error(`image file not found: ${imagePath}`);
   }
 
+  if (!fs.statSync(imagePath).isFile()) {
+    throw new Error(`image path is not a file: ${imagePath}`);
+  }
+
   const imageExt = path.extname(imagePath).toLowerCase();
 
   if (!IMAGE_EXTS.has(imageExt)) {
@@ -77,13 +82,9 @@ function assertImagePath(imagePath) {
     throw new Error("image path must be a non-empty string");
   }
 
-  imagePath = path.resolve(imagePath);
+  const parsed = path.parse(path.resolve(imagePath));
 
-  if (path.extname(imagePath).toLowerCase() !== ".png") {
-    imagePath += ".png";
-  }
-
-  return imagePath;
+  return path.join(parsed.dir, `${parsed.name}.png`);
 }
 
 function assertClipboardBin() {
@@ -91,7 +92,7 @@ function assertClipboardBin() {
 
   if (!fs.existsSync(clipboardBin)) {
     throw new Error(
-      `image-clipboard binary not found: ${clipboardBin}. Run: npm run compile:image-clipboard`,
+      `image-clipboard binary not found: ${clipboardBin}. Run: npm run build:macos:image-clipboard`,
     );
   }
 

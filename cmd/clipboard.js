@@ -1,132 +1,114 @@
 import {
-  assertNonBlankString,
-  assertNonBlankStringOrNonEmptyArray,
-} from "../infra/assert.js";
-
-import {
   readClipboardText,
   writeClipboardText,
-} from "../clipboard/text-clipboard.js";
-
-import {
   readClipboardFile,
   writeClipboardFile,
-} from "../clipboard/file-clipboard.js";
-
-import {
   readClipboardImage,
   writeClipboardImage,
-} from "../clipboard/image-clipboard.js";
+} from "../clipboard/index.js";
 
 export const CLIPBOARD_COMMANDS = {
-  read: {
+  "read-text": {
     handler: cmd_readClipboardText,
-    usage: "clipboard read",
-    description: "Read text from clipboard",
+    usage: "clipboard read-text",
+    description: "Read text from the clipboard",
   },
 
-  write: {
+  "write-text": {
     handler: cmd_writeClipboardText,
-    usage: "clipboard write <text>",
-    description: "Write text to clipboard",
+    usage: "clipboard write-text <text>",
+    description: "Write text to the clipboard",
   },
 
   "read-file": {
     handler: cmd_readClipboardFile,
     usage: "clipboard read-file",
-    description: "Read file(s) from clipboard",
+    description: "Read file paths from the clipboard",
   },
 
   "write-file": {
     handler: cmd_writeClipboardFile,
-    usage: "clipboard write-file <file1> [file2 ...]",
-    description: "Write file(s) to clipboard",
+    usage: "clipboard write-file <file...>",
+    description: "Write one or more files to the clipboard",
   },
 
   "read-image": {
     handler: cmd_readClipboardImage,
-    usage: "clipboard read-image <outputPath>",
-    description: "Read image from clipboard",
+    usage: "clipboard read-image <output>",
+    description: "Save a clipboard image as a PNG file",
   },
 
   "write-image": {
     handler: cmd_writeClipboardImage,
-    usage: "clipboard write-image <imagePath>",
-    description: "Write image to clipboard",
+    usage: "clipboard write-image <file>",
+    description: "Write an image file to the clipboard",
   },
 };
 
-export async function cmd_readClipboardText({ argv, options } = {}) {
-  const text = await readClipboardText(options);
-
+export async function cmd_readClipboardText({ options = {} } = {}) {
+  const text = await readClipboardText();
   const { reporter } = options;
+
   reporter?.info?.(text, options);
 
   return text;
 }
 
-export async function cmd_writeClipboardText({ argv, options } = {}) {
-  const [text] = argv;
-  assertNonBlankString(text, "argv[0]");
+export async function cmd_writeClipboardText({ argv = [], options = {} } = {}) {
+  if (argv.length === 0) {
+    throw new Error("text is required");
+  }
 
-  await writeClipboardText(text, options);
+  const text = argv.join(" ");
+
+  await writeClipboardText(text);
 
   const { reporter } = options;
-  reporter?.info?.(`Wrote text to clipboard`, options);
+  reporter?.info?.("Clipboard text written", options);
 
   return true;
 }
 
-export async function cmd_readClipboardFile({ argv, options } = {}) {
-  const files = await readClipboardFile(options);
-
+export async function cmd_readClipboardFile({ options = {} } = {}) {
+  const filePaths = await readClipboardFile();
   const { reporter } = options;
-  reporter?.info?.(`Read ${files.length} file(s) from clipboard`, options);
-  for (const file of files) {
-    reporter?.info?.(`Read file from clipboard: ${file}`, options);
+
+  reporter?.info?.(`Read ${filePaths.length} file(s)`, options);
+
+  for (const filePath of filePaths) {
+    reporter?.info?.(`Clipboard file: ${filePath}`, options);
   }
 
-  return files;
+  return filePaths;
 }
 
-export async function cmd_writeClipboardFile({ argv, options } = {}) {
-  const [files] = argv;
-  assertNonBlankStringOrNonEmptyArray(files, "argv[0]");
-
-  const writtenFiles = await writeClipboardFile(files, options);
-
+export async function cmd_writeClipboardFile({ argv = [], options = {} } = {}) {
+  const filePaths = await writeClipboardFile(argv);
   const { reporter } = options;
-  reporter?.info?.(
-    `Wrote ${writtenFiles.length} file(s) to clipboard`,
-    options,
-  );
-  for (const file of writtenFiles) {
-    reporter?.info?.(`Wrote file to clipboard: ${file}`, options);
+
+  reporter?.info?.(`Wrote ${filePaths.length} file(s)`, options);
+
+  for (const filePath of filePaths) {
+    reporter?.info?.(`Clipboard file: ${filePath}`, options);
   }
 
-  return writtenFiles;
+  return filePaths;
 }
 
-export async function cmd_readClipboardImage({ argv, options } = {}) {
-  const [imagePath] = argv;
-  assertNonBlankString(imagePath, "argv[0]");
-
-  imagePath = await readClipboardImage(imagePath, options);
-
+export async function cmd_readClipboardImage({ argv = [], options = {} } = {}) {
+  const imagePath = await readClipboardImage(argv[0]);
   const { reporter } = options;
-  reporter?.info?.(`Read image from clipboard: ${imagePath}(png)`, options);
+
+  reporter?.info?.(`Clipboard image saved: ${imagePath}`, options);
 
   return imagePath;
 }
 
-export async function cmd_writeClipboardImage({ argv, options } = {}) {
-  const [imagePath] = argv;
-  assertNonBlankString(imagePath, "argv[0]");
-
-  imagePath = await writeClipboardImage(imagePath, options);
-
+export async function cmd_writeClipboardImage({ argv = [], options = {} } = {}) {
+  const imagePath = await writeClipboardImage(argv[0]);
   const { reporter } = options;
-  reporter?.info?.(`Wrote image to clipboard: ${imagePath}`, options);
+
+  reporter?.info?.(`Clipboard image written: ${imagePath}`, options);
 
   return imagePath;
 }

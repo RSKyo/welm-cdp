@@ -26,10 +26,10 @@
 // Design:
 // - This file is only a public export hub.
 // - No implementation logic should be added here.
-// - Keep concrete implementations in path.js, file.js, and scan.js.
+// - Keep concrete implementations in file.js and scan.js.
 //
 // Version: 0.1.0
-// Last modified: 2026-07-07
+// Last modified: 2026-07-16
 // -----------------------------------------------------------------------------
 
 export * from "./file.js";
