@@ -253,18 +253,26 @@ function prop(key, value) {
   return value === undefined ? {} : { [key]: value };
 }
 
-function resolveModifiers(modifierKeys) {
-  if (!modifierKeys) {
+function resolveModifiers(withKeys) {
+  if (!withKeys) {
     return { entries: [], modifiers: 0 };
   }
 
-  const keys = Array.isArray(modifierKeys) ? modifierKeys : [modifierKeys];
+  const keys = Array.isArray(withKeys) ? withKeys : [withKeys];
+
 
   const entries = [];
   let modifiers = 0;
 
-  for (const k of keys) {
-    const entry = MODIFIER_KEYS[k.toLowerCase()];
+  const modifierKeys = Object.keys(MODIFIER_KEYS.keys);
+
+  for (const key of keys) {
+    
+    if (typeof key !== "string") {
+    throw new Error("keyEventWith must be a string or an array of strings");
+  }
+
+    const entry = MODIFIER_KEYS[key.toLowerCase()];
     if (!entry) continue;
 
     entries.push(entry);
@@ -277,7 +285,7 @@ function resolveModifiers(modifierKeys) {
 async function pressKey(targetId, key, code, options = {}) {
   const { Input } = await getClient(targetId, options);
 
-  const { entries, modifiers } = resolveModifiers(options.keyEventWith);
+  const { entries = [], modifiers = 0 } = resolveModifiers(options.keyEventWith);
 
   const event = {
     key,
@@ -332,17 +340,17 @@ async function pressKey(targetId, key, code, options = {}) {
 async function textInput(targetId, text, options = {}) {
   const value = String(text);
   const characters = Array.from(value);
-  const typeLimit = options.typeCount ?? 15;
+  let typeLimit = options.typeLimit ?? 15;
 
   if (!Number.isInteger(typeLimit) || typeLimit < 0) {
-    throw new Error("typeCount must be a non-negative integer");
+    throw new Error("typeLimit must be a non-negative integer");
   }
 
   const max = Math.min(characters.length, typeLimit);
   const min = Math.min(5, max);
-  const typeCount = random(min, max);
+  typeLimit = random(min, max);
 
-  const typedCharacters = characters.slice(0, typeCount);
+  const typedCharacters = characters.slice(0, typeLimit);
 
   for (const character of typedCharacters) {
     await pressKey(targetId, "", "", {
@@ -351,7 +359,7 @@ async function textInput(targetId, text, options = {}) {
     });
   }
 
-  const remainingText = characters.slice(typeCount).join("");
+  const remainingText = characters.slice(typeLimit).join("");
 
   if (remainingText !== "") {
     await writeClipboardText(remainingText);
