@@ -149,7 +149,9 @@ export async function listTargets(options = {}) {
 export async function getTarget(targetId, options = {}) {
   const targets = await listTargets(options);
 
-  const target = targets.find((target) => target.targetId === targetId);
+  const target = targets.find(
+    (target) => target.targetId.toLowerCase() === targetId.toLowerCase(),
+  );
 
   if (!target) {
     throw new Error(`target not found: ${targetId}`);

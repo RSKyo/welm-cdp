@@ -77,10 +77,16 @@ export async function getClient(targetId, options = {}) {
   let clientPromise = clientPromiseMap.get(clientKey);
 
   if (!clientPromise) {
-    clientPromise = createClient(targetId, options);
+    clientPromise = createClient(targetId, options, () => {
+      if (clientPromiseMap.get(clientKey) === clientPromise) {
+        clientPromiseMap.delete(clientKey);
+      }
+    });
 
     clientPromise.catch(() => {
-      clientPromiseMap.delete(clientKey);
+      if (clientPromiseMap.get(clientKey) === clientPromise) {
+        clientPromiseMap.delete(clientKey);
+      }
     });
 
     clientPromiseMap.set(clientKey, clientPromise);
@@ -164,10 +170,8 @@ function getClientKey(targetId, options = {}) {
   return `${host}:${port}:${targetId}`;
 }
 
-async function createClient(targetId, options = {}) {
+async function createClient(targetId, options = {}, onDisconnect) {
   const { host, port } = getCdpOptions(options);
-
-  const clientKey = getClientKey(targetId, options);
 
   const client = await CDP({
     host,
@@ -175,9 +179,7 @@ async function createClient(targetId, options = {}) {
     target: targetId,
   });
 
-  client.on("disconnect", () => {
-    clientPromiseMap.delete(clientKey);
-  });
+  client.on("disconnect", onDisconnect);
 
   return client;
 }

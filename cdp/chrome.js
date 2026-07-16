@@ -4,6 +4,8 @@
 // Chrome process and page management utilities based on CDP.
 //
 // Public API:
+// - setChromeBin(chromeBin)
+// - setChromeUserDataDir(userDataDir)
 // - ensureChrome(options)
 // - isChromeReady(options)
 //
@@ -17,6 +19,7 @@
 // - closeChromePage(keywords, options)
 //
 // Features:
+// - Persist Chrome executable and user data directory settings.
 // - Check and launch Chrome with a remote debugging port.
 // - Wait for the Chrome CDP service to become available.
 // - List, find, activate, reload, open, and close Chrome pages.
@@ -25,10 +28,12 @@
 // - Activate or reload the first page matching a keyword.
 // - Close all pages matching any keyword.
 // - Wait for newly opened or reloaded pages to become ready.
-// - Support configurable CDP host, port, profile, and timeout options.
+// - Support configurable CDP host, port, target type, and timeouts.
 //
 // Design:
-// - Chrome runs as a detached process with a dedicated user data directory.
+// - Per-call chromeBin and userDataDir options take precedence.
+// - Missing Chrome paths are read from the shared Welm config.
+// - Chrome runs as a detached process with the configured user data directory.
 // - Page targets are normalized to targetId, type, title, and url.
 // - Target ID matching is exact and case-insensitive.
 // - Title and URL matching is partial and case-insensitive.
@@ -37,18 +42,14 @@
 // - Temporary CDP clients are always closed after use.
 // - Public methods return normalized Chrome or page information.
 //
-// Version: 0.2.0
-// Last modified: 2026-07-15
+// Version: 0.2.5
+// Last modified: 2026-07-17
 // -----------------------------------------------------------------------------
 
 import CDP from "chrome-remote-interface";
 import { spawn } from "node:child_process";
-import { constants } from "node:fs";
-import { access } from "node:fs/promises";
-import { homedir } from "node:os";
-import nodePath from "node:path";
 
-
+import { config } from "../infra/config.js";
 import {
   getCdpOptions,
   listTargets,
@@ -61,21 +62,10 @@ import {
   closeTarget,
 } from "./target.js";
 
-const defaultUserDataDir = nodePath.join(
-  homedir(),
-  ".local",
-  "share",
-  "welm",
-  "chrome-profile",
-);
-
-const defaultChromeBinDarwin =
-  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-const defaultChromeBinLinux = "google-chrome"; // need absolute path, e.g. /usr/bin/google-chrome
-const defaultChromeBinWin32 = "chrome.exe"; // need absolute path, e.g. C:\Program Files\Google\Chrome\Application\chrome.exe
-
 const defaultChromeReadyTimeout = 15000;
 const defaultChromeReadyInterval = 200;
+const defaultLeaveAboutBlankTimeout = 5000;
+const defaultLeaveAboutBlankInterval = 50;
 const defaultPageReadyTimeout = 30000;
 const defaultPageReadyInterval = 200;
 
@@ -84,7 +74,67 @@ const defaultPageReadyInterval = 200;
 // -----------------------------------------------------------------------------
 
 /**
- * Check whether the Chrome CDP service is available.
+ * Persist the Chrome executable path in the shared Welm config.
+ *
+ * The path is stored at cdp.chromeBin in config.json and is
+ * used by ensureChrome() when options.chromeBin is not provided.
+ *
+ * @example
+ * setChromeBin(
+ *   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+ * );
+ *
+ * @param {string} chromeBin
+ * Non-empty Chrome executable path.
+ *
+ * @returns {string}
+ * Saved Chrome executable path.
+ *
+ * @throws {Error}
+ * Throws if chromeBin is not a non-empty string.
+ */
+export function setChromeBin(chromeBin) {
+  if (typeof chromeBin !== "string" || chromeBin.trim() === "") {
+    throw new Error("chromeBin must be a non-empty string");
+  }
+
+  config.set("cdp.chromeBin", chromeBin);
+
+  return chromeBin;
+}
+
+/**
+ * Persist the Chrome user data directory in the shared Welm config.
+ *
+ * The directory is stored at cdp.userDataDir in config.json and is
+ * used by ensureChrome() when options.userDataDir is not provided.
+ *
+ * @example
+ * setChromeUserDataDir(
+ *   "/Users/name/.local/share/welm/chrome-profile",
+ * );
+ *
+ * @param {string} userDataDir
+ * Non-empty Chrome user data directory path.
+ *
+ * @returns {string}
+ * Saved Chrome user data directory path.
+ *
+ * @throws {Error}
+ * Throws if userDataDir is not a non-empty string.
+ */
+export function setChromeUserDataDir(userDataDir) {
+  if (typeof userDataDir !== "string" || userDataDir.trim() === "") {
+    throw new Error("userDataDir must be a non-empty string");
+  }
+
+  config.set("cdp.userDataDir", userDataDir);
+
+  return userDataDir;
+}
+
+/**
+ * Check whether the Chrome CDP version endpoint is available.
  *
  * @example
  * const ready = await isChromeReady();
@@ -99,7 +149,7 @@ const defaultPageReadyInterval = 200;
  * Chrome CDP service port.
  *
  * @returns {Promise<boolean>}
- * Returns true if the Chrome CDP service is available.
+ * Returns true when the CDP /json/version endpoint responds successfully.
  */
 export async function isChromeReady(options = {}) {
   const { host, port } = getCdpOptions(options);
@@ -118,7 +168,18 @@ export async function isChromeReady(options = {}) {
  * If the CDP service is not available, Chrome is launched
  * and the method waits until the service becomes ready.
  *
+ * Per-call chromeBin and userDataDir options take precedence.
+ * When omitted, their values are read from cdp.chromeBin and
+ * cdp.userDataDir in the shared Welm configuration.
+ *
  * @example
+ * setChromeBin(
+ *   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+ * );
+ * setChromeUserDataDir(
+ *   "/Users/name/.local/share/welm/chrome-profile",
+ * );
+ *
  * const chrome = await ensureChrome({
  *   cdpPort: 9222,
  * });
@@ -136,10 +197,10 @@ export async function isChromeReady(options = {}) {
  * Chrome target type.
  *
  * @param {string} [options.userDataDir]
- * Chrome user data directory.
+ * Chrome user data directory. Uses cdp.userDataDir when omitted.
  *
  * @param {string} [options.chromeBin]
- * Chrome executable path.
+ * Chrome executable path. Uses cdp.chromeBin when omitted.
  *
  * @param {number} [options.chromeReadyTimeout=15000]
  * Maximum time to wait for the Chrome CDP service, in milliseconds.
@@ -151,8 +212,12 @@ export async function isChromeReady(options = {}) {
  * Progress reporter.
  *
  * @returns {Promise<Object>}
- * Chrome information.
- * The launched field indicates whether Chrome was started by this call.
+ * Chrome information. The launched field indicates whether
+ * Chrome was started by this call.
+ *
+ * @throws {Error}
+ * Throws if Chrome paths are not configured, Chrome cannot be
+ * launched, or the CDP service is not ready before the timeout.
  */
 export async function ensureChrome(options = {}) {
   let launchInfo;
@@ -352,6 +417,14 @@ export async function activateChromePage(keyword, options = {}) {
  * @param {number} [options.pageReadyInterval=200]
  * Page readiness polling interval, in milliseconds.
  *
+ * @param {number} [options.leaveAboutBlankTimeout=5000]
+ * Maximum time to wait for a newly created page to leave about:blank,
+ * in milliseconds.
+ *
+ * @param {number} [options.leaveAboutBlankInterval=50]
+ * Polling interval while waiting for a page to leave about:blank,
+ * in milliseconds.
+ *
  * @param {Object} [options.reporter]
  * Progress reporter.
  *
@@ -418,6 +491,14 @@ export async function reloadChromePage(keyword, options = {}) {
  * @param {number} [options.pageReadyInterval=200]
  * Page readiness polling interval, in milliseconds.
  *
+ * @param {number} [options.leaveAboutBlankTimeout=5000]
+ * Maximum time to wait for a newly created page to leave about:blank,
+ * in milliseconds.
+ *
+ * @param {number} [options.leaveAboutBlankInterval=50]
+ * Polling interval while waiting for a page to leave about:blank,
+ * in milliseconds.
+ *
  * @param {Object} [options.reporter]
  * Progress reporter.
  *
@@ -481,6 +562,14 @@ export async function openChromePage(url, options = {}) {
  *
  * @param {number} [options.pageReadyInterval=200]
  * Page readiness polling interval, in milliseconds.
+ *
+ * @param {number} [options.leaveAboutBlankTimeout=5000]
+ * Maximum time to wait for a newly created page to leave about:blank,
+ * in milliseconds.
+ *
+ * @param {number} [options.leaveAboutBlankInterval=50]
+ * Polling interval while waiting for a page to leave about:blank,
+ * in milliseconds.
  *
  * @param {Object} [options.reporter]
  * Progress reporter used when opening a new page.
@@ -577,9 +666,33 @@ function assertHttpUrl(url) {
   return url;
 }
 
+function getChromeBin(options = {}) {
+  const chromeBin = options.chromeBin || config.get("cdp.chromeBin");
+
+  if (!chromeBin) {
+    throw new Error(
+      "Please first set chrome executable path using options.chromeBin or setChromeBin(path).",
+    );
+  }
+
+  return chromeBin;
+}
+
+function getChromeUserDataDir(options = {}) {
+  const userDataDir = options.userDataDir || config.get("cdp.userDataDir");
+
+  if (!userDataDir) {
+    throw new Error(
+      "Please first set Chrome user data directory using options.userDataDir or setChromeUserDataDir(path).",
+    );
+  }
+
+  return userDataDir;
+}
+
 function normalizeChromeInfo(launched = false, options = {}) {
   const { host, port, targetType } = getCdpOptions(options);
-  const userDataDir = options.userDataDir ?? defaultUserDataDir;
+  const userDataDir = getChromeUserDataDir(options);
   const chromeBin = getChromeBin(options);
 
   return {
@@ -590,54 +703,6 @@ function normalizeChromeInfo(launched = false, options = {}) {
     chromeBin,
     launched,
   };
-}
-
-// -----------------------------------------------------------------------------
-// Private Helpers: Chrome Lifecycle
-// -----------------------------------------------------------------------------
-
-/**
- * 获取当前平台默认的 Chrome 可执行文件路径。
- */
-function getChromeBin(options = {}) {
-  return (
-    options.chromeBin ||
-    process.env.CHROME_BIN ||
-    {
-      darwin: defaultChromeBinDarwin,
-      linux: defaultChromeBinLinux,
-      win32: defaultChromeBinWin32,
-    }[process.platform]
-  );
-}
-
-/**
- * 检查 Chrome 可执行文件是否存在。
- */
-async function checkChromeBin(chromeBin) {
-  // access() checks file or directory accessibility.
-  // F_OK checks whether the path exists (darwin/linux/win32).
-  // X_OK checks executable permission (Unix-like only, not win32).
-
-  try {
-    await access(chromeBin, constants.F_OK);
-  } catch {
-    throw new Error(`chrome executable not found: ${chromeBin}`);
-  }
-
-  if (process.platform === "win32") {
-    if (nodePath.extname(chromeBin).toLowerCase() !== ".exe") {
-      throw new Error(`invalid chrome executable: ${chromeBin}`);
-    }
-  } else {
-    try {
-      await access(chromeBin, constants.X_OK);
-    } catch {
-      throw new Error(`chrome executable is not executable: ${chromeBin}`);
-    }
-  }
-
-  return chromeBin;
 }
 
 /**
@@ -665,8 +730,8 @@ async function waitChromeReady(options = {}) {
  */
 async function launchChrome(options = {}) {
   const { host, port } = getCdpOptions(options);
-  const userDataDir = options.userDataDir ?? defaultUserDataDir;
-  const chromeBin = await checkChromeBin(getChromeBin(options));
+  const userDataDir = getChromeUserDataDir(options);
+  const chromeBin = getChromeBin(options);
 
   const args = [
     `--remote-debugging-address=${host}`,
@@ -679,6 +744,16 @@ async function launchChrome(options = {}) {
   const child = spawn(chromeBin, args, {
     detached: true,
     stdio: "ignore",
+  });
+
+  await new Promise((resolve, reject) => {
+    child.once("spawn", resolve);
+
+    child.once("error", (error) => {
+      reject(
+        new Error(`failed to launch Chrome: ${chromeBin}: ${error.message}`),
+      );
+    });
   });
 
   child.unref();
@@ -696,8 +771,10 @@ async function launchChrome(options = {}) {
  * 不表示页面已加载完成。
  */
 async function waitLeaveAboutBlank(targetId, options = {}) {
-  const timeout = 2000;
-  const interval = 50;
+  const timeout =
+    options.leaveAboutBlankTimeout ?? defaultLeaveAboutBlankTimeout;
+  const interval =
+    options.leaveAboutBlankInterval ?? defaultLeaveAboutBlankInterval;
 
   const start = Date.now();
 

@@ -25,8 +25,8 @@
 // - Poll intervals never sleep beyond the remaining timeout.
 // - Poll results include the matched value and evaluation count.
 //
-// Version: 0.1.0
-// Last modified: 2026-07-14
+// Version: 0.1.5
+// Last modified: 2026-07-17
 // -----------------------------------------------------------------------------
 
 import { getClient } from "./client.js";
@@ -106,13 +106,13 @@ export async function evaluate(targetId, expression, options = {}) {
 }
 
 /**
- * Poll a JavaScript expression until a matcher condition is satisfied.
+ * Poll a JavaScript expression until its result satisfies
+ * the configured matcher condition.
  *
- * The matcher must succeed consecutively matchTimes times.
- * A failed match resets the consecutive match count.
- *
- * The default matcher treats null, undefined, false, zero,
- * and blank strings as unmatched. Other values are matched.
+ * Successful matches must be consecutive. The condition can
+ * require both a minimum number of consecutive matches and a
+ * minimum continuous match duration. Any failed match resets
+ * both the consecutive match count and match duration.
  *
  * @example
  * const result = await poll(
@@ -122,7 +122,9 @@ export async function evaluate(targetId, expression, options = {}) {
  *     matcher(value) {
  *       return value === "complete";
  *     },
- *   }
+ *     matchTimes: 3,
+ *     matchDuration: 1000,
+ *   },
  * );
  *
  * console.log(result.value);
@@ -139,15 +141,25 @@ export async function evaluate(targetId, expression, options = {}) {
  *
  * @param {number} [options.pollTimeout=30000]
  * Maximum polling duration, in milliseconds.
+ * Must be a positive finite number.
  *
  * @param {number} [options.pollInterval=500]
  * Delay between evaluations, in milliseconds.
+ * Must be a positive finite number.
  *
- * @param {Function} [options.matcher]
- * Function used to test each evaluated value.
+ * @param {(value: *) => boolean} [options.matcher]
+ * Synchronous function used to test each evaluated value.
+ * Uses the default matcher when omitted.
  *
  * @param {number} [options.matchTimes=1]
  * Required number of consecutive successful matches.
+ * Must be a positive integer.
+ *
+ * @param {number} [options.matchDuration=0]
+ * Minimum continuous match duration, in milliseconds.
+ * The duration starts from the first successful match and
+ * resets when a later evaluation does not match.
+ * Must be a non-negative finite number.
  *
  * @param {string} [options.cdpHost="127.0.0.1"]
  * Chrome CDP service host.
@@ -155,33 +167,64 @@ export async function evaluate(targetId, expression, options = {}) {
  * @param {number} [options.cdpPort=9222]
  * Chrome CDP service port.
  *
- * @returns {Promise<Object>}
- * Polling result containing value and times.
+ * @returns {Promise<{value: *, times: number}>}
+ * Polling result containing the final matched value and
+ * total evaluation times.
  *
  * @throws {Error}
- * Throws if expression evaluation fails
- * or the condition is not matched before the timeout.
+ * Throws if polling options are invalid, expression evaluation
+ * fails, or the condition is not matched before the timeout.
  */
 export async function poll(targetId, expression, options = {}) {
   const timeout = options.pollTimeout ?? defaultPollTimeout;
   const interval = options.pollInterval ?? defaultPollInterval;
   const matcher = options.matcher ?? defaultMatcher;
   const matchTimes = options.matchTimes ?? 1;
+  const matchDuration = options.matchDuration ?? 0;
+
+  if (!Number.isFinite(timeout) || timeout <= 0) {
+    throw new Error("pollTimeout must be a positive finite number");
+  }
+
+  if (!Number.isFinite(interval) || interval <= 0) {
+    throw new Error("pollInterval must be a positive finite number");
+  }
+
+  if (typeof matcher !== "function") {
+    throw new Error("matcher must be a function");
+  }
+
+  if (!Number.isInteger(matchTimes) || matchTimes <= 0) {
+    throw new Error("matchTimes must be a positive integer");
+  }
+
+  if (!Number.isFinite(matchDuration) || matchDuration < 0) {
+    throw new Error("matchDuration must be a non-negative finite number");
+  }
 
   const start = Date.now();
 
   let value;
   let times = 0;
   let matchedTimes = 0;
+  let matchedStartTime = null;
+  let matchedDuration = 0;
 
   while (Date.now() - start < timeout) {
     value = await evaluate(targetId, expression, options);
     times++;
 
     if (matcher(value)) {
+      const matchedAt = Date.now();
+
+      if (matchedTimes === 0) {
+        matchedStartTime = matchedAt;
+      }
+
+      matchedDuration = matchedAt - matchedStartTime;
       matchedTimes++;
 
-      if (matchedTimes >= matchTimes) {
+      if (matchedTimes >= matchTimes && matchedDuration >= matchDuration) {
         return {
           value,
           times,
@@ -189,6 +232,8 @@ export async function poll(targetId, expression, options = {}) {
       }
     } else {
       matchedTimes = 0;
+      matchedStartTime = null;
+      matchedDuration = 0;
     }
 
     const remaining = timeout - (Date.now() - start);
