@@ -29,9 +29,7 @@
 // -----------------------------------------------------------------------------
 
 import CDP from "chrome-remote-interface";
-
-const defaultHost = "127.0.0.1";
-const defaultPort = 9222;
+import { getCdpOptions } from "./chrome.js";
 
 // Map<clientKey, Promise<CDP.Client>>
 const clientPromiseMap = new Map();
@@ -159,13 +157,6 @@ export async function closeClients(onClose) {
 // -----------------------------------------------------------------------------
 // Private Helpers
 // -----------------------------------------------------------------------------
-
-function getCdpOptions(options = {}) {
-  return {
-    host: options.cdpHost ?? defaultHost,
-    port: options.cdpPort ?? defaultPort,
-  };
-}
 
 function getClientKey(targetId, options = {}) {
   const { host, port } = getCdpOptions(options);

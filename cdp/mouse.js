@@ -94,7 +94,6 @@ export async function mouseMove(targetId, x, y, options = {}) {
   return true;
 }
 
-
 /**
  * Click an element using simulated mouse movement.
  *

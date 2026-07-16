@@ -84,7 +84,6 @@ const MODIFIER_KEYS = {
 // Public API: Key
 // -----------------------------------------------------------------------------
 
-
 /**
  * Dispatch an arbitrary key press to a Chrome target.
  *
@@ -422,7 +421,7 @@ export async function scrollBottom(targetId, options = {}) {
  * @returns {Promise<boolean>}
  * Resolves to true after the copy operation is complete.
  */
-  export async function copy(targetId, options = {}) {
+export async function copy(targetId, options = {}) {
   await pressKey(targetId, "c", "KeyC", {
     ...options,
     keyEventWith: primaryModifier,

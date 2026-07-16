@@ -102,13 +102,19 @@ export async function focus(targetId, selector, options = {}) {
 }
 
 /**
- * Scroll an element into view.
+ * Scroll an element into the viewport and wait until its
+ * viewport-relative box becomes stable.
+ *
+ * The element is centered with instant scrolling. If the element
+ * is not available or its center is outside the viewport, polling
+ * continues until the element can be centered and its position
+ * and size remain stable for the required number of checks.
  *
  * @example
- * await scrollIntoView(targetId, "#result", {
- *   block: "center",
- *   behavior: "smooth",
- * });
+ * await scrollIntoView(
+ *   targetId,
+ *   "#submit"
+ * );
  *
  * @param {string} targetId
  * Chrome target ID.
@@ -117,40 +123,109 @@ export async function focus(targetId, selector, options = {}) {
  * CSS selector.
  *
  * @param {Object} [options]
- * Scroll options.
+ * DOM, polling, and CDP options.
  *
  * @param {number} [options.nth=0]
  * Zero-based element index.
  * Negative values select from the end.
  *
- * @param {string} [options.block="center"]
- * Vertical alignment.
+ * @param {number} [options.pollTimeout=30000]
+ * Maximum waiting duration, in milliseconds.
  *
- * @param {string} [options.inline="center"]
- * Horizontal alignment.
+ * @param {number} [options.pollInterval=100]
+ * Delay between checks, in milliseconds.
  *
- * @param {string} [options.behavior="instant"]
- * Scroll behavior.
+ * @param {number} [options.matchTimes=3]
+ * Required number of consecutive stable box comparisons.
+ *
+ * @param {number} [options.positionTolerance=0.5]
+ * Maximum allowed difference, in CSS pixels, for each box
+ * position and size value between two consecutive checks.
+ *
+ * @param {string} [options.cdpHost="127.0.0.1"]
+ * Chrome CDP service host.
+ *
+ * @param {number} [options.cdpPort=9222]
+ * Chrome CDP service port.
  *
  * @returns {Promise<boolean>}
- * Returns true after the scroll request.
+ * Returns true after the element is centered in the viewport
+ * and its viewport-relative box is stable.
+ *
+ * @throws {Error}
+ * Throws if the element cannot be found, centered, and stabilized
+ * before the polling timeout.
  */
 export async function scrollIntoView(targetId, selector, options = {}) {
+  const tolerance = options.positionTolerance ?? 0.5;
+
+  if (!Number.isFinite(tolerance) || tolerance < 0) {
+    throw new Error("positionTolerance must be a non-negative number");
+  }
+
+  let previousBox = null;
+
   const expression = `
     (() => {
-      const el = ${buildElementResolver(selector, options)};
+      const el = ${buildElementResolverSafe(selector, options)};
+      if (!el) return null;
 
-      el.scrollIntoView({
-        block: ${q(options.block ?? "center")},
-        inline: ${q(options.inline ?? "center")},
-        behavior: ${q(options.behavior ?? "instant")},
-      });
+      const isCenterInViewport = (rect) => {
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
 
-      return true;
+        return (
+          centerX >= 0 &&
+          centerX <= window.innerWidth &&
+          centerY >= 0 &&
+          centerY <= window.innerHeight
+        );
+      };
+
+      let rect = el.getBoundingClientRect();
+
+      if (!isCenterInViewport(rect)) {
+        el.scrollIntoView({
+          block: "center",
+          inline: "center",
+          behavior: "instant",
+        });
+
+        rect = el.getBoundingClientRect();
+      }
+
+      if (!isCenterInViewport(rect)) {
+        return null;
+      }
+
+      return {
+        x: rect.left,
+        y: rect.top,
+        width: rect.width,
+        height: rect.height,
+      };
     })()
   `;
 
-  await evaluate(targetId, expression, options);
+  await poll(targetId, expression, {
+    ...options,
+    pollInterval: options.pollInterval ?? 100,
+    matchTimes: options.matchTimes ?? 3,
+
+    matcher(box) {
+      if (!box) {
+        previousBox = null;
+        return false;
+      }
+
+      const stable =
+        previousBox !== null && isRectStable(previousBox, box, tolerance);
+
+      previousBox = box;
+
+      return stable;
+    },
+  });
 
   return true;
 }
@@ -535,8 +610,9 @@ export async function getElementCenter(targetId, selector, options = {}) {
  * Zero-based element index.
  * Negative values select from the end.
  *
- * @returns {Promise<boolean>}
- * Resolves with true when the element exists.
+ * @returns {Promise<{value: boolean, times: number}>}
+ * Polling result containing the matched boolean value and
+ * total evaluation times.
  */
 export function waitElementAppear(targetId, selector, options = {}) {
   return waitElement(targetId, selector, {
@@ -549,12 +625,14 @@ export function waitElementAppear(targetId, selector, options = {}) {
 }
 
 /**
- * Wait for an element to appear.
+ * Wait for an element to disappear.
+ *
+ * The condition is met when the selected element no longer exists.
  *
  * @example
- * await waitElementAppear(
+ * await waitElementDisappear(
  *   targetId,
- *   "#result"
+ *   "#loading"
  * );
  *
  * @param {string} targetId
@@ -570,8 +648,9 @@ export function waitElementAppear(targetId, selector, options = {}) {
  * Zero-based element index.
  * Negative values select from the end.
  *
- * @returns {Promise<boolean>}
- * Resolves with true when the element exists.
+ * @returns {Promise<{value: boolean, times: number}>}
+ * Polling result containing the matched boolean value and
+ * total evaluation times.
  */
 export function waitElementDisappear(targetId, selector, options = {}) {
   return waitElement(targetId, selector, {
@@ -608,8 +687,9 @@ export function waitElementDisappear(targetId, selector, options = {}) {
  * Zero-based element index.
  * Negative values select from the end.
  *
- * @returns {Promise<boolean>}
- * Resolves with true when the element is visible.
+ * @returns {Promise<{value: boolean, times: number}>}
+ * Polling result containing the matched boolean value and
+ * total evaluation times.
  */
 export function waitElementVisible(targetId, selector, options = {}) {
   const expression = `
@@ -664,8 +744,9 @@ export function waitElementVisible(targetId, selector, options = {}) {
  * Zero-based element index.
  * Negative values select from the end.
  *
- * @returns {Promise<boolean>}
- * Resolves with true when the element is visible and editable.
+ * @returns {Promise<{value: boolean, times: number}>}
+ * Polling result containing the matched boolean value and
+ * total evaluation times.
  */
 export function waitElementEditable(targetId, selector, options = {}) {
   const expression = `
@@ -735,15 +816,16 @@ export function waitElementEditable(targetId, selector, options = {}) {
 }
 
 /**
- * Wait for an element to become editable.
+ * Wait for an element to become clickable.
  *
- * Editable elements include contenteditable elements,
- * textareas, and editable input types.
+ * Clickability requires the element to be visible and enabled.
+ * The element must not have disabled set and must not have
+ * aria-disabled="true".
  *
  * @example
- * await waitElementEditable(
+ * await waitElementClickable(
  *   targetId,
- *   "#message"
+ *   "#submit"
  * );
  *
  * @param {string} targetId
@@ -759,8 +841,9 @@ export function waitElementEditable(targetId, selector, options = {}) {
  * Zero-based element index.
  * Negative values select from the end.
  *
- * @returns {Promise<boolean>}
- * Resolves with true when the element is visible and editable.
+ * @returns {Promise<{value: boolean, times: number}>}
+ * Polling result containing the matched boolean value and
+ * total evaluation times. The value is true when the element is visible and enabled.
  */
 export function waitElementClickable(targetId, selector, options = {}) {
   const expression = `
@@ -825,8 +908,9 @@ export function waitElementClickable(targetId, selector, options = {}) {
  * Zero-based element index.
  * Negative values select from the end.
  *
- * @returns {Promise<string>}
- * Matching element text.
+ * @returns {Promise<{value: string, times: number}>}
+ * Polling result containing the matched element text and
+ * total evaluation times.
  */
 export function waitElementTextIncludes(
   targetId,
@@ -869,8 +953,9 @@ export function waitElementTextIncludes(
  * Zero-based element index.
  * Negative values select from the end.
  *
- * @returns {Promise<string>}
- * Matching element text.
+ * @returns {Promise<{value: string, times: number}>}
+ * Polling result containing the matched element text and
+ * total evaluation times.
  */
 export function waitElementTextEquals(
   targetId,
@@ -913,8 +998,9 @@ export function waitElementTextEquals(
  * Zero-based element index.
  * Negative values select from the end.
  *
- * @returns {Promise<string>}
- * Matching element text.
+ * @returns {Promise<{value: string, times: number}>}
+ * Polling result containing the matched element text and
+ * total evaluation times.
  */
 export function waitElementTextRegex(
   targetId,
@@ -962,8 +1048,9 @@ export function waitElementTextRegex(
  * @param {Object} [options]
  * Runtime and polling options.
  *
- * @returns {Promise<number>}
- * Matching element count.
+ * @returns {Promise<{value: number, times: number}>}
+ * Polling result containing the matched element count and
+ * total evaluation times.
  */
 export function waitElementCountEquals(
   targetId,
@@ -1002,8 +1089,9 @@ export function waitElementCountEquals(
  * @param {Object} [options]
  * Runtime and polling options.
  *
- * @returns {Promise<number>}
- * Matching element count.
+ * @returns {Promise<{value: number, times: number}>}
+ * Polling result containing the matched element count and
+ * total evaluation times.
  */
 export function waitElementCountGreater(
   targetId,
@@ -1043,8 +1131,9 @@ export function waitElementCountGreater(
  * @param {Object} [options]
  * Runtime and polling options.
  *
- * @returns {Promise<number>}
- * Matching element count.
+ * @returns {Promise<{value: number, times: number}>}
+ * Polling result containing the matched element count and
+ * total evaluation times.
  */
 export function waitElementCountGreaterEquals(
   targetId,
@@ -1083,8 +1172,9 @@ export function waitElementCountGreaterEquals(
  * @param {Object} [options]
  * Runtime and polling options.
  *
- * @returns {Promise<number>}
- * Matching element count.
+* @returns {Promise<{value: number, times: number}>}
+ * Polling result containing the matched element count and
+ * total evaluation times.
  */
 export function waitElementCountLess(
   targetId,
@@ -1124,8 +1214,9 @@ export function waitElementCountLess(
  * @param {Object} [options]
  * Runtime and polling options.
  *
- * @returns {Promise<number>}
- * Matching element count.
+ * @returns {Promise<{value: number, times: number}>}
+ * Polling result containing the matched element count and
+ * total evaluation times.
  */
 export function waitElementCountLessEquals(
   targetId,
@@ -1164,8 +1255,9 @@ export function waitElementCountLessEquals(
  * @param {Object} [options]
  * Runtime and polling options.
  *
- * @returns {Promise<number>}
- * Matching element count.
+ * @returns {Promise<{value: number, times: number}>}
+ * Polling result containing the matched element count and
+ * total evaluation times.
  */
 export function waitElementCountNotEquals(
   targetId,
@@ -1252,6 +1344,15 @@ function buildElementResolverSafe(selector, options = {}) {
       return elements[index];
     })()
   `;
+}
+
+function isRectStable(previous, current, tolerance) {
+  return (
+    Math.abs(current.x - previous.x) <= tolerance &&
+    Math.abs(current.y - previous.y) <= tolerance &&
+    Math.abs(current.width - previous.width) <= tolerance &&
+    Math.abs(current.height - previous.height) <= tolerance
+  );
 }
 
 function waitElement(targetId, selector, options = {}) {

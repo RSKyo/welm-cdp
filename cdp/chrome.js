@@ -45,7 +45,9 @@ import CDP from "chrome-remote-interface";
 import { spawn } from "node:child_process";
 import { constants } from "node:fs";
 import { access } from "node:fs/promises";
+import { homedir } from "node:os";
 import nodePath from "node:path";
+
 
 import {
   getCdpOptions,
@@ -59,7 +61,13 @@ import {
   closeTarget,
 } from "./target.js";
 
-const defaultUserDataDir = `${process.env.HOME}/.local/share/welm/chrome-profile`;
+const defaultUserDataDir = nodePath.join(
+  homedir(),
+  ".local",
+  "share",
+  "welm",
+  "chrome-profile",
+);
 
 const defaultChromeBinDarwin =
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
@@ -484,6 +492,8 @@ export async function openChromePage(url, options = {}) {
  * Throws if url is not a valid HTTP or HTTPS URL.
  */
 export async function ensureChromePage(url, options = {}) {
+  assertHttpUrl(url);
+
   const target = await findTarget(url, { ...options, throwIfNotFound: false });
 
   if (target) {
