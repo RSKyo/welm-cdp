@@ -1,0 +1,1 @@
+Welm comes from an Old English word meaning to well up — a symbol of ideas, creativity, and capabilities continuously emerging.
