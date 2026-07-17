@@ -102,7 +102,6 @@ import {
 | `leaveAboutBlankInterval` | `number` | `50` | 同上 | 等待页面离开 `about:blank` 的轮询间隔，毫秒 |
 | `pageReadyTimeout` | `number` | `30000` | `openChromePage`、`reloadChromePage`；间接用于 `ensureChromePage` | 等待 `document.readyState` 就绪的最长时间，毫秒 |
 | `pageReadyInterval` | `number` | `200` | 同上 | 轮询 `document.readyState` 的间隔，毫秒 |
-| `reporter` | `object` | 无 | `ensureChrome`、`openChromePage`、`reloadChromePage`；间接用于 `ensureChromePage` | 可选进度报告对象，支持 `progress()` 与 `progressDone()` |
 
 ## API 详情
 
@@ -210,7 +209,7 @@ const chrome = await ensureChrome({
 });
 ```
 
-- 使用 options：`cdpHost`、`cdpPort`、`targetType`、`chromeBin`、`userDataDir`、`chromeReadyTimeout`、`chromeReadyInterval`、`reporter`。
+- 使用 options：`cdpHost`、`cdpPort`、`targetType`、`chromeBin`、`userDataDir`、`chromeReadyTimeout`、`chromeReadyInterval`。
 - 返回 `ChromeInfo`。
 - CDP 服务不可用时，启动 Chrome 并等待服务就绪；已就绪时不重复启动。
 - `chromeBin` 与 `userDataDir` 的来源优先级：本次 `options` → `config.json` 中的 `cdp.chromeBin` / `cdp.userDataDir`。
@@ -291,7 +290,7 @@ const page = await reloadChromePage("example", {
 | --- | --- | --- | --- |
 | `keyword` | `string` | 是 | Target ID、标题或 URL 的查找关键字 |
 
-- 使用 options：`cdpHost`、`cdpPort`、`targetType`、`leaveAboutBlankTimeout`、`leaveAboutBlankInterval`、`pageReadyTimeout`、`pageReadyInterval`、`reporter`。
+- 使用 options：`cdpHost`、`cdpPort`、`targetType`、`leaveAboutBlankTimeout`、`leaveAboutBlankInterval`、`pageReadyTimeout`、`pageReadyInterval`。
 - 返回刷新完成后的最新 `Page`。
 - 操作第一个匹配页面；找不到时抛出异常。
 - 刷新固定使用 `{ ignoreCache: true }`，即忽略缓存。
@@ -310,7 +309,7 @@ const page = await openChromePage("https://example.com", {
 | --- | --- | --- | --- |
 | `url` | `string` | 是 | 有效的 HTTP 或 HTTPS URL |
 
-- 使用 options：`cdpHost`、`cdpPort`、`targetType`、`leaveAboutBlankTimeout`、`leaveAboutBlankInterval`、`pageReadyTimeout`、`pageReadyInterval`、`reporter`。
+- 使用 options：`cdpHost`、`cdpPort`、`targetType`、`leaveAboutBlankTimeout`、`leaveAboutBlankInterval`、`pageReadyTimeout`、`pageReadyInterval`。
 - 返回新页面就绪后的最新 `Page`。
 - URL 不是 HTTP 或 HTTPS 时抛出异常。
 - 依次等待 URL 离开 `about:blank`，以及 `document.readyState` 为 `interactive` 或 `complete`。
@@ -325,7 +324,7 @@ const page = await ensureChromePage("https://example.com/");
 | --- | --- | --- | --- |
 | `url` | `string` | 是 | 有效的 HTTP 或 HTTPS URL，同时用作查找关键字 |
 
-- 使用 options：`cdpHost`、`cdpPort`、`targetType`、`leaveAboutBlankTimeout`、`leaveAboutBlankInterval`、`pageReadyTimeout`、`pageReadyInterval`、`reporter`。
+- 使用 options：`cdpHost`、`cdpPort`、`targetType`、`leaveAboutBlankTimeout`、`leaveAboutBlankInterval`、`pageReadyTimeout`、`pageReadyInterval`。
 - 返回已有或新建后的 `Page`。
 - 先按 `url` 查找第一个匹配页面；只有找不到时才调用 `openChromePage()` 新建页面。
 - 这是关键字匹配而不是 URL 严格相等；较短 URL 可能匹配到其他页面。

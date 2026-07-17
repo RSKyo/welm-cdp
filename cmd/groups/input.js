@@ -20,7 +20,7 @@ import {
   clear,
   appendText,
   fillText,
-} from "../cdp/input.js";
+} from "../../cdp/input.js";
 
 const CDP_OPTIONS = "--host --port";
 const KEY_EVENT_OPTIONS =

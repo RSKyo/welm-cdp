@@ -1,4 +1,5 @@
-import { assertHttpUrl, assertNonBlankString } from "../infra/assert.js";
+import { log } from "../../common/log.js";
+import { assertHttpUrl, assertNonBlankString } from "../../common/assert.js";
 import {
   getCdpOptions,
   listTargets,
@@ -9,7 +10,7 @@ import {
   reloadTarget,
   openTarget,
   closeTarget,
-} from "../cdp/target.js";
+} from "../../cdp/target.js";
 
 const CDP_OPTIONS = "--host --port";
 const TARGET_TYPE_OPTIONS = "--target-type";
@@ -102,14 +103,8 @@ export const TARGET_COMMANDS = {
 export async function cmd_getCdpOptions({ options } = {}) {
   const cdpOptions = getCdpOptions(options);
 
-  options.reporter?.info?.(
-    `CDP endpoint: http://${cdpOptions.host}:${cdpOptions.port}`,
-    options,
-  );
-  options.reporter?.info?.(
-    `Chrome target type: ${cdpOptions.targetType}`,
-    options,
-  );
+  log.info(`CDP endpoint: http://${cdpOptions.host}:${cdpOptions.port}`, options);
+  log.info(`Chrome target type: ${cdpOptions.targetType}`, options);
 
   return cdpOptions;
 }
@@ -177,7 +172,7 @@ export async function cmd_activateTarget({ argv, options } = {}) {
 
   await activateTarget(targetId, options);
 
-  options.reporter?.info?.(`Chrome target activated: ${targetId}`, options);
+  log.info(`Chrome target activated: ${targetId}`, options);
 
   return true;
 }
@@ -191,7 +186,7 @@ export async function cmd_reloadTarget({ argv, options } = {}) {
 
   await reloadTarget(targetId, options);
 
-  options.reporter?.info?.(`Chrome target reloaded: ${targetId}`, options);
+  log.info(`Chrome target reloaded: ${targetId}`, options);
 
   return true;
 }
@@ -219,7 +214,7 @@ export async function cmd_closeTarget({ argv, options } = {}) {
 
   await closeTarget(targetId, options);
 
-  options.reporter?.info?.(`Chrome target closed: ${targetId}`, options);
+  log.info(`Chrome target closed: ${targetId}`, options);
 
   return true;
 }
@@ -241,19 +236,13 @@ function assertKeywords(keywords) {
 }
 
 function reportTarget(target, options = {}) {
-  options.reporter?.info?.(
-    `${target.targetId} ${target.type} ${target.title}`,
-    options,
-  );
+  log.info(`${target.targetId} ${target.type} ${target.title}`, options);
 }
 
 function reportTargets(targets, options = {}) {
   const total = targets.length;
 
   targets.forEach((target, index) => {
-    options.reporter?.info?.(
-      `(${index + 1}/${total}) ${target.targetId} ${target.type} ${target.title}`,
-      options,
-    );
+    log.info(`(${index + 1}/${total}) ${target.targetId} ${target.type} ${target.title}`, options);
   });
 }

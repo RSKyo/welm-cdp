@@ -29,9 +29,8 @@ function getDisplayWidth(text) {
   return width;
 }
 
-// --json 表示命令输出为 JSON，此时不输出任何日志，只返回最终结果。
 function isSilent(options = {}) {
-  return options.json === true;
+  return options.silent === true;
 }
 
 function isDebug(options = {}) {
@@ -107,10 +106,10 @@ function progressDone(text = "", options = {}) {
 }
 
 function progressBar(current, total, text = "", options = {}) {
+  if (isSilent(options)) return;
+
   const width = 30;
-
   const percent = current / total;
-
   const filled = Math.floor(width * percent);
 
   const bar =

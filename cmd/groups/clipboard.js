@@ -1,3 +1,4 @@
+import { log } from "../../common/log.js";
 import {
   readClipboardText,
   writeClipboardText,
@@ -5,7 +6,7 @@ import {
   writeClipboardFile,
   readClipboardImage,
   writeClipboardImage,
-} from "../clipboard/index.js";
+} from "../../clipboard/index.js";
 
 export const CLIPBOARD_COMMANDS = {
   "read-text": {
@@ -47,9 +48,8 @@ export const CLIPBOARD_COMMANDS = {
 
 export async function cmd_readClipboardText({ options = {} } = {}) {
   const text = await readClipboardText();
-  const { reporter } = options;
 
-  reporter?.info?.(text, options);
+  log.info(text, options);
 
   return text;
 }
@@ -63,20 +63,17 @@ export async function cmd_writeClipboardText({ argv = [], options = {} } = {}) {
 
   await writeClipboardText(text);
 
-  const { reporter } = options;
-  reporter?.info?.("Clipboard text written", options);
+  log.info("Clipboard text written", options);
 
   return true;
 }
 
 export async function cmd_readClipboardFile({ options = {} } = {}) {
   const filePaths = await readClipboardFile();
-  const { reporter } = options;
-
-  reporter?.info?.(`Read ${filePaths.length} file(s)`, options);
+  log.info(`Read ${filePaths.length} file(s)`, options);
 
   for (const filePath of filePaths) {
-    reporter?.info?.(`Clipboard file: ${filePath}`, options);
+    log.info(`Clipboard file: ${filePath}`, options);
   }
 
   return filePaths;
@@ -84,12 +81,10 @@ export async function cmd_readClipboardFile({ options = {} } = {}) {
 
 export async function cmd_writeClipboardFile({ argv = [], options = {} } = {}) {
   const filePaths = await writeClipboardFile(argv);
-  const { reporter } = options;
-
-  reporter?.info?.(`Wrote ${filePaths.length} file(s)`, options);
+  log.info(`Wrote ${filePaths.length} file(s)`, options);
 
   for (const filePath of filePaths) {
-    reporter?.info?.(`Clipboard file: ${filePath}`, options);
+    log.info(`Clipboard file: ${filePath}`, options);
   }
 
   return filePaths;
@@ -97,18 +92,14 @@ export async function cmd_writeClipboardFile({ argv = [], options = {} } = {}) {
 
 export async function cmd_readClipboardImage({ argv = [], options = {} } = {}) {
   const imagePath = await readClipboardImage(argv[0]);
-  const { reporter } = options;
-
-  reporter?.info?.(`Clipboard image saved: ${imagePath}`, options);
+  log.info(`Clipboard image saved: ${imagePath}`, options);
 
   return imagePath;
 }
 
 export async function cmd_writeClipboardImage({ argv = [], options = {} } = {}) {
   const imagePath = await writeClipboardImage(argv[0]);
-  const { reporter } = options;
-
-  reporter?.info?.(`Clipboard image written: ${imagePath}`, options);
+  log.info(`Clipboard image written: ${imagePath}`, options);
 
   return imagePath;
 }

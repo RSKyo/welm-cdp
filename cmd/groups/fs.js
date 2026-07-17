@@ -1,3 +1,4 @@
+import { log } from "../../common/log.js";
 import {
   moveFileTo,
   copyFileTo,
@@ -11,7 +12,7 @@ import {
   writeFileBase64,
   scanFiles,
   scanDirs,
-} from "../fs/index.js";
+} from "../../fs/index.js";
 
 export const FS_COMMANDS = {
   move: {
@@ -91,9 +92,7 @@ export async function cmd_moveFileTo({ argv = [], options = {} } = {}) {
   const filePath = requireArg(argv, 0, "source file");
   const toFilePath = requireArg(argv, 1, "target file");
   const targetPath = moveFileTo(filePath, toFilePath, options);
-  const { reporter } = options;
-
-  reporter?.info?.(`File moved: ${targetPath}`, options);
+  log.info(`File moved: ${targetPath}`, options);
 
   return targetPath;
 }
@@ -102,9 +101,7 @@ export async function cmd_copyFileTo({ argv = [], options = {} } = {}) {
   const filePath = requireArg(argv, 0, "source file");
   const toFilePath = requireArg(argv, 1, "target file");
   const targetPath = copyFileTo(filePath, toFilePath, options);
-  const { reporter } = options;
-
-  reporter?.info?.(`File copied: ${targetPath}`, options);
+  log.info(`File copied: ${targetPath}`, options);
 
   return targetPath;
 }
@@ -112,9 +109,7 @@ export async function cmd_copyFileTo({ argv = [], options = {} } = {}) {
 export async function cmd_removeFile({ argv = [], options = {} } = {}) {
   const filePath = requireArg(argv, 0, "file");
   const removed = removeFile(filePath);
-  const { reporter } = options;
-
-  reporter?.info?.(`File removed: ${filePath}`, options);
+  log.info(`File removed: ${filePath}`, options);
 
   return removed;
 }
@@ -123,9 +118,7 @@ export async function cmd_renameFile({ argv = [], options = {} } = {}) {
   const filePath = requireArg(argv, 0, "file");
   const name = requireArg(argv, 1, "name");
   const targetPath = renameFile(filePath, name);
-  const { reporter } = options;
-
-  reporter?.info?.(`File renamed: ${targetPath}`, options);
+  log.info(`File renamed: ${targetPath}`, options);
 
   return targetPath;
 }
@@ -133,9 +126,7 @@ export async function cmd_renameFile({ argv = [], options = {} } = {}) {
 export async function cmd_readFileText({ argv = [], options = {} } = {}) {
   const filePath = requireArg(argv, 0, "file");
   const text = readFileText(filePath, options);
-  const { reporter } = options;
-
-  reporter?.info?.(text, options);
+  log.info(text, options);
 
   return text;
 }
@@ -144,9 +135,7 @@ export async function cmd_writeFileText({ argv = [], options = {} } = {}) {
   const filePath = requireArg(argv, 0, "file");
   const text = argv.slice(1).join(" ");
   const targetPath = writeFileText(filePath, text, options);
-  const { reporter } = options;
-
-  reporter?.info?.(`Text file written: ${targetPath}`, options);
+  log.info(`Text file written: ${targetPath}`, options);
 
   return targetPath;
 }
@@ -154,9 +143,8 @@ export async function cmd_writeFileText({ argv = [], options = {} } = {}) {
 export async function cmd_readFileJson({ argv = [], options = {} } = {}) {
   const filePath = requireArg(argv, 0, "file");
   const value = readFileJson(filePath, options);
-  const { reporter } = options;
 
-  reporter?.info?.(JSON.stringify(value, null, 2), options);
+  log.info(JSON.stringify(value, null, 2), options);
 
   return value;
 }
@@ -178,9 +166,7 @@ export async function cmd_writeFileJson({ argv = [], options = {} } = {}) {
   }
 
   const targetPath = writeFileJson(filePath, value, options);
-  const { reporter } = options;
-
-  reporter?.info?.(`JSON file written: ${targetPath}`, options);
+  log.info(`JSON file written: ${targetPath}`, options);
 
   return targetPath;
 }
@@ -188,9 +174,8 @@ export async function cmd_writeFileJson({ argv = [], options = {} } = {}) {
 export async function cmd_readFileBase64({ argv = [], options = {} } = {}) {
   const filePath = requireArg(argv, 0, "file");
   const base64 = readFileBase64(filePath);
-  const { reporter } = options;
 
-  reporter?.info?.(base64, options);
+  log.info(base64, options);
 
   return base64;
 }
@@ -199,9 +184,7 @@ export async function cmd_writeFileBase64({ argv = [], options = {} } = {}) {
   const filePath = requireArg(argv, 0, "file");
   const base64 = requireArg(argv, 1, "base64");
   const targetPath = writeFileBase64(filePath, base64, options);
-  const { reporter } = options;
-
-  reporter?.info?.(`Base64 file written: ${targetPath}`, options);
+  log.info(`Base64 file written: ${targetPath}`, options);
 
   return targetPath;
 }
@@ -209,12 +192,10 @@ export async function cmd_writeFileBase64({ argv = [], options = {} } = {}) {
 export async function cmd_scanFiles({ argv = [], options = {} } = {}) {
   const input = requireArg(argv, 0, "path");
   const entries = scanFiles(input, options);
-  const { reporter } = options;
-
-  reporter?.info?.(`Found ${entries.length} file(s)`, options);
+  log.info(`Found ${entries.length} file(s)`, options);
 
   for (const entry of entries) {
-    reporter?.info?.(entry.filePath, options);
+    log.info(entry.filePath, options);
   }
 
   return entries;
@@ -223,12 +204,10 @@ export async function cmd_scanFiles({ argv = [], options = {} } = {}) {
 export async function cmd_scanDirs({ argv = [], options = {} } = {}) {
   const dirPath = requireArg(argv, 0, "path");
   const entries = scanDirs(dirPath, options);
-  const { reporter } = options;
-
-  reporter?.info?.(`Found ${entries.length} directories`, options);
+  log.info(`Found ${entries.length} directories`, options);
 
   for (const entry of entries) {
-    reporter?.info?.(entry.dirPath, options);
+    log.info(entry.dirPath, options);
   }
 
   return entries;

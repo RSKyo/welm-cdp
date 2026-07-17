@@ -1,4 +1,5 @@
-import { assertHttpUrl, assertNonBlankString } from "../infra/assert.js";
+import { log } from "../../common/log.js";
+import { assertHttpUrl, assertNonBlankString } from "../../common/assert.js";
 import {
   setCdpHost,
   setCdpPort,
@@ -15,7 +16,7 @@ import {
   openChromePage,
   ensureChromePage,
   closeChromePage,
-} from "../cdp/chrome.js";
+} from "../../cdp/chrome.js";
 
 const CDP_OPTIONS = "--host --port";
 const CHROME_OPTIONS = "--chrome-bin --user-data-dir";
@@ -166,7 +167,7 @@ export async function cmd_setCdpHost({ argv, options } = {}) {
 
   const savedHost = setCdpHost(host);
 
-  options.reporter?.info?.(
+  log.info(
     `Chrome CDP service host saved: ${savedHost}`,
     options,
   );
@@ -187,7 +188,7 @@ export async function cmd_setCdpPort({ argv, options } = {}) {
 
   const savedPort = setCdpPort(port);
 
-  options.reporter?.info?.(
+  log.info(
     `Chrome CDP service port saved: ${savedPort}`,
     options,
   );
@@ -207,7 +208,7 @@ export async function cmd_setCdpTargetType({ argv, options } = {}) {
 
   const savedTargetType = setCdpTargetType(targetType);
 
-  options.reporter?.info?.(
+  log.info(
     `Chrome target type saved: ${savedTargetType}`,
     options,
   );
@@ -224,7 +225,7 @@ export async function cmd_setChromeBin({ argv, options } = {}) {
 
   const savedChromeBin = setChromeBin(chromeBin);
 
-  options.reporter?.info?.(
+  log.info(
     `Chrome executable path saved: ${savedChromeBin}`,
     options,
   );
@@ -241,7 +242,7 @@ export async function cmd_setChromeUserDataDir({ argv, options } = {}) {
 
   const savedUserDataDir = setChromeUserDataDir(userDataDir);
 
-  options.reporter?.info?.(
+  log.info(
     `Chrome user data directory saved: ${savedUserDataDir}`,
     options,
   );
@@ -255,7 +256,7 @@ export async function cmd_setChromeUserDataDir({ argv, options } = {}) {
 export async function cmd_isChromeReady({ options } = {}) {
   const ready = await isChromeReady(options);
 
-  options.reporter?.info?.(
+  log.info(
     ready ? "Chrome CDP service is ready" : "Chrome CDP service is not ready",
     options,
   );
@@ -270,14 +271,13 @@ export async function cmd_ensureChrome({ options } = {}) {
   const chrome = await ensureChrome(options);
 
   if (chrome.launched) {
-    const { reporter } = options;
 
-    reporter?.info?.(
+    log.info(
       `CDP endpoint: http://${chrome.host}:${chrome.port}`,
       options,
     );
-    reporter?.info?.(`Using Chrome executable: ${chrome.chromeBin}`, options);
-    reporter?.info?.(
+    log.info(`Using Chrome executable: ${chrome.chromeBin}`, options);
+    log.info(
       `Using Chrome user data dir: ${chrome.userDataDir}`,
       options,
     );
@@ -390,7 +390,7 @@ export async function cmd_closeChromePage({ argv, options } = {}) {
 
   const closed = await closeChromePage(argv, options);
 
-  options.reporter?.info?.("Matching Chrome pages closed", options);
+  log.info("Matching Chrome pages closed", options);
 
   return closed;
 }
@@ -412,14 +412,14 @@ function assertKeywords(keywords) {
 }
 
 function reportPage(page, options = {}) {
-  options.reporter?.info?.(`${page.targetId} ${page.title}`, options);
+  log.info(`${page.targetId} ${page.title}`, options);
 }
 
 function reportPages(pages, options = {}) {
   const total = pages.length;
 
   pages.forEach((page, index) => {
-    options.reporter?.info?.(
+    log.info(
       `(${index + 1}/${total}) ${page.targetId} ${page.title}`,
       options,
     );

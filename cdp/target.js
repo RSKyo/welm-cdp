@@ -38,7 +38,7 @@
 // -----------------------------------------------------------------------------
 
 import CDP from "chrome-remote-interface";
-import { config } from "../infra/config.js";
+import { config } from "../common/config.js";
 
 const defaultHost = "127.0.0.1";
 const defaultPort = 9222;

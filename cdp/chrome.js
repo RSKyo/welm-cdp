@@ -52,7 +52,8 @@
 import CDP from "chrome-remote-interface";
 import { spawn } from "node:child_process";
 
-import { config } from "../infra/config.js";
+import { log } from "../common/log.js";
+import { config } from "../common/config.js";
 import {
   getCdpOptions,
   listTargets,
@@ -292,9 +293,6 @@ export async function isChromeReady(options = {}) {
  * @param {number} [options.chromeReadyInterval=200]
  * Chrome CDP service polling interval, in milliseconds.
  *
- * @param {Object} [options.reporter]
- * Progress reporter.
- *
  * @returns {Promise<Object>}
  * Chrome information. The launched field indicates whether
  * Chrome was started by this call.
@@ -309,14 +307,14 @@ export async function ensureChrome(options = {}) {
   if (!(await isChromeReady(options))) {
     const startTime = Date.now();
 
-    options.reporter?.progress?.(`Starting Chrome...`, options);
+    log.progress(`Starting Chrome...`, options);
     launchInfo = await launchChrome(options);
 
-    options.reporter?.progress?.(`Waiting for Chrome CDP service...`, options);
+    log.progress(`Waiting for Chrome CDP service...`, options);
     await waitChromeReady(options);
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    options.reporter?.progressDone?.(`Chrome is ready (${elapsed}s)`, options);
+    log.progressDone(`Chrome is ready (${elapsed}s)`, options);
 
     return launchInfo;
   }
@@ -509,9 +507,6 @@ export async function activateChromePage(keyword, options = {}) {
  * Polling interval while waiting for a page to leave about:blank,
  * in milliseconds.
  *
- * @param {Object} [options.reporter]
- * Progress reporter.
- *
  * @returns {Promise<Object>}
  * Reloaded Chrome page.
  *
@@ -523,11 +518,11 @@ export async function reloadChromePage(keyword, options = {}) {
 
   const startTime = Date.now();
 
-  options.reporter?.progress?.("Reloading page...", options);
+  log.progress("Reloading page...", options);
 
   await reloadTarget(target.targetId, options);
 
-  options.reporter?.progress?.("Waiting for page...", options);
+  log.progress("Waiting for page...", options);
 
   await waitPageReady(target.targetId, options);
 
@@ -535,7 +530,7 @@ export async function reloadChromePage(keyword, options = {}) {
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
 
-  options.reporter?.progressDone?.(
+  log.progressDone(
     `Page reloaded (${elapsed}s) ${target.url}`,
     options,
   );
@@ -583,9 +578,6 @@ export async function reloadChromePage(keyword, options = {}) {
  * Polling interval while waiting for a page to leave about:blank,
  * in milliseconds.
  *
- * @param {Object} [options.reporter]
- * Progress reporter.
- *
  * @returns {Promise<Object>}
  * Opened Chrome page.
  *
@@ -597,11 +589,11 @@ export async function openChromePage(url, options = {}) {
 
   const startTime = Date.now();
 
-  options.reporter?.progress?.("Opening page...", options);
+  log.progress("Opening page...", options);
 
   let target = await openTarget(url, options);
 
-  options.reporter?.progress?.("Waiting for page...", options);
+  log.progress("Waiting for page...", options);
 
   await waitPageReady(target.targetId, options);
 
@@ -609,7 +601,7 @@ export async function openChromePage(url, options = {}) {
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
 
-  options.reporter?.progressDone?.(`Page is ready (${elapsed}s)`, options);
+  log.progressDone(`Page is ready (${elapsed}s)`, options);
 
   return target;
 }
@@ -654,9 +646,6 @@ export async function openChromePage(url, options = {}) {
  * @param {number} [options.leaveAboutBlankInterval=50]
  * Polling interval while waiting for a page to leave about:blank,
  * in milliseconds.
- *
- * @param {Object} [options.reporter]
- * Progress reporter used when opening a new page.
  *
  * @returns {Promise<Object>}
  * Existing or newly opened Chrome page.

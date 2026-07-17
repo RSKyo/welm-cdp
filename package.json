@@ -9,13 +9,10 @@
   "scripts": {
     "start": "node ./cli.js",
     "test": "node --test",
-
     "build:macos:dialog": "swiftc dialog/dialog.swift -o dialog/dialog.bin",
-
     "build:macos:file-clipboard": "swiftc clipboard/file-clipboard.swift -o clipboard/file-clipboard.bin",
     "build:macos:image-clipboard": "swiftc clipboard/image-clipboard.swift -o clipboard/image-clipboard.bin",
     "build:macos:clipboard": "npm run build:macos:file-clipboard && npm run build:macos:image-clipboard",
-
     "build:macos": "npm run build:macos:dialog && npm run build:macos:clipboard"
   },
   "keywords": [],
@@ -25,16 +22,22 @@
     "chrome-remote-interface": "^0.34.0"
   },
   "exports": {
-    "./chrome": "./cdp/chrome.js",
-    "./client": "./cdp/client.js",
-    "./runtime": "./cdp/runtime.js",
-    "./dom": "./cdp/dom.js",
-    "./input": "./cdp/input.js",
-    "./mouse": "./cdp/mouse.js",
-    "./screenshot": "./cdp/screenshot.js",
+    "./common/assert": "./common/assert.js",
+    "./common/config": "./common/config.js",
+    "./common/log": "./common/log.js",
 
-    "./clipboard": "./clipboard/index.js",
+    "./cdp/chrome": "./cdp/chrome.js",
+    "./cdp/client": "./cdp/client.js",
+    "./cdp/runtime": "./cdp/runtime.js",
+    "./cdp/dom": "./cdp/dom.js",
+    "./cdp/input": "./cdp/input.js",
+    "./cdp/mouse": "./cdp/mouse.js",
+    "./cdp/screenshot": "./cdp/screenshot.js",
+
+    "./cmd/runner": "./cmd/runner.js",
+
     "./fs": "./fs/index.js",
+    "./clipboard": "./clipboard/index.js",
     "./dialog": "./dialog/dialog.js"
   }
 }

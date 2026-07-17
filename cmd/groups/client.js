@@ -1,6 +1,7 @@
-import { assertNonBlankString } from "../infra/assert.js";
-import { getClient, closeClients } from "../cdp/client.js";
-import { getCdpOptions } from "../cdp/target.js";
+import { log } from "../../common/log.js";
+import { assertNonBlankString } from "../../common/assert.js";
+import { getClient, closeClients } from "../../cdp/client.js";
+import { getCdpOptions } from "../../cdp/target.js";
 
 const CDP_OPTIONS = "--host --port";
 
@@ -11,14 +12,14 @@ const CDP_OPTIONS = "--host --port";
  * client close
  */
 export const CLIENT_COMMANDS = {
-  "get": {
+  get: {
     handler: cmd_getClient,
     usage: "client get <targetId> [options]",
     description: "Connect to Chrome target and cache CDP client",
     options: CDP_OPTIONS,
   },
 
-  "close": {
+  close: {
     handler: cmd_closeClients,
     usage: "client close",
     description: "Close cached CDP clients in the current process",
@@ -46,10 +47,7 @@ export async function cmd_getClient({ argv, options } = {}) {
     connected: true,
   };
 
-  options.reporter?.info?.(
-    `CDP client connected: ${targetId} (${host}:${port})`,
-    options,
-  );
+  log.info(`CDP client connected: ${targetId} (${host}:${port})`, options);
 
   return info;
 }
@@ -60,7 +58,7 @@ export async function cmd_getClient({ argv, options } = {}) {
 export async function cmd_closeClients({ options } = {}) {
   await closeClients();
 
-  options.reporter?.info?.("Cached CDP clients closed", options);
+  log.info("Cached CDP clients closed", options);
 
   return true;
 }

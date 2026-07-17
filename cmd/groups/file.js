@@ -1,3 +1,4 @@
+import { log } from "../../common/log.js";
 import {
   readFileText,
   writeFileText,
@@ -6,12 +7,12 @@ import {
   moveFileTo,
   removeFile,
   renameFile,
-} from "../fs/file.js";
+} from "../../fs/file.js";
 
 import {
   scanFiles,
   scanDirs,
-} from "../fs/scan.js";
+} from "../../fs/scan.js";
 
 
 export const FILE_COMMANDS = {
@@ -75,8 +76,7 @@ export async function cmd_readText({ argv, options } = {}) {
 
   const text = readFileText(filePath, options);
 
-  const { reporter } = options;
-  reporter?.info?.(`Read text file: ${filePath}`, options);
+  log.info(`Read text file: ${filePath}`, options);
 
   return text;
 }
@@ -87,8 +87,7 @@ export async function cmd_writeText({ argv, options } = {}) {
 
   const file = writeFileText(filePath, text, options);
 
-  const { reporter } = options;
-  reporter?.info?.(`Write text file: ${file}`, options);
+  log.info(`Write text file: ${file}`, options);
 
   return file;
 }
@@ -103,8 +102,7 @@ export async function cmd_copyFile({ argv, options } = {}) {
 
   const file = copyFileTo(filePath, toFilePath, options);
 
-  const { reporter } = options;
-  reporter?.info?.(`Copied file: ${file}`, options);
+  log.info(`Copied file: ${file}`, options);
 
   return file;
 }
@@ -115,8 +113,7 @@ export async function cmd_moveFile({ argv, options } = {}) {
 
   const file = moveFileTo(filePath, toFilePath, options);
 
-  const { reporter } = options;
-  reporter?.info?.(`Moved file: ${file}`, options);
+  log.info(`Moved file: ${file}`, options);
 
   return file;
 }
@@ -127,8 +124,7 @@ export async function cmd_removeFile({ argv, options } = {}) {
 
   const result = removeFile(filePath);
 
-  const { reporter } = options;
-  reporter?.info?.(`Removed file: ${filePath}`, options);
+  log.info(`Removed file: ${filePath}`, options);
 
   return result;
 }
@@ -139,8 +135,7 @@ export async function cmd_renameFile({ argv, options } = {}) {
 
   const file = renameFile(filePath, name);
 
-  const { reporter } = options;
-  reporter?.info?.(`Renamed file: ${file}`, options);
+  log.info(`Renamed file: ${file}`, options);
 
   return file;
 }
@@ -155,8 +150,7 @@ export async function cmd_scanFiles({ argv, options } = {}) {
 
   const files = scanFiles(input, options);
 
-  const { reporter } = options;
-  reporter?.info?.(`Scanned ${files.length} file(s)`, options);
+  log.info(`Scanned ${files.length} file(s)`, options);
 
   return files;
 }
@@ -167,8 +161,7 @@ export async function cmd_scanDirs({ argv, options } = {}) {
 
   const dirs = scanDirs(dirPath, options);
 
-  const { reporter } = options;
-  reporter?.info?.(`Scanned ${dirs.length} director(y|ies)`, options);
+  log.info(`Scanned ${dirs.length} director(y|ies)`, options);
 
   return dirs;
 }

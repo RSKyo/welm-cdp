@@ -4,7 +4,7 @@ import {
   mouseMove,
   click,
   doubleClick,
-} from "../cdp/mouse.js";
+} from "../../cdp/mouse.js";
 
 const CDP_OPTIONS = "--host --port";
 const DOM_OPTIONS = "--nth --timeout --interval";
