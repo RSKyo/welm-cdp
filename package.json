@@ -34,7 +34,7 @@
     "./cdp/mouse": "./cdp/mouse.js",
     "./cdp/screenshot": "./cdp/screenshot.js",
 
-    "./cmd/runner": "./cmd/runner.js",
+    "./cli/runner": "./cli/runner.js",
 
     "./fs": "./fs/index.js",
     "./clipboard": "./clipboard/index.js",
