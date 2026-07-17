@@ -1,282 +1,53 @@
-# Client
+# Client API
 
-`client.js` 基于 [`chrome-remote-interface`](https://github.com/cyrus-and/chrome-remote-interface) 管理 CDP Client 连接，用于：
-
-- 根据 Chrome 地址、CDP 端口和 Target ID 创建 Client；
-- 缓存并复用已经创建的 Client；
-- 避免并发操作为同一个 Target 重复创建 Client；
-- 在连接断开时自动删除失效缓存；
-- 在一项操作结束后主动关闭所有 Client。
-
-Client 表示 Node.js 与某个 Chrome Target 之间的 CDP 连接。默认情况下，一个 Chrome Tab 对应一个类型为 `page` 的 Target。
-
-关闭 Client 只会断开 CDP 连接，不会关闭 Chrome 或对应的 Tab。
-
-## 安装依赖
-
-```bash
-npm install chrome-remote-interface
-```
-
-如果通过 `welm-cdp` 使用：
+`welm-cdp/client` 管理连接到指定 Chrome Target 的可复用 CDP client。它是进程内缓存，不负责启动 Chrome、查找页面或关闭页面。
 
 ```js
 import { getClient, closeClients } from "welm-cdp/client";
 ```
 
-如果直接使用当前文件：
+## API 一览
 
-```js
-import { getClient, closeClients } from "./client.js";
-```
+| 方法 | 返回值 | 用途 |
+| --- | --- | --- |
+| `getClient(targetId, options?)` | `Promise<CDP.Client>` | 获取或创建指定 Target 的可复用 client |
+| `closeClients(onClose?)` | `Promise<void>` | 关闭当前进程中所有缓存 client |
 
-## 快速开始
+## Options 清单
 
-```js
-import { getClient, closeClients } from "welm-cdp/client";
+| 选项 | 类型 | 默认值 | 使用方法 | 说明 |
+| --- | --- | --- | --- | --- |
+| `cdpHost` | `string` | `config.cdp.host`，否则 `"127.0.0.1"` | `getClient` | Chrome CDP 服务主机地址；优先于保存配置 |
+| `cdpPort` | `number` | `config.cdp.port`，否则 `9222` | `getClient` | Chrome CDP 服务端口；优先于保存配置 |
 
-try {
-  const client = await getClient(targetId);
+## API 详情
 
-  const result = await client.Runtime.evaluate({
-    expression: "document.title",
-    returnByValue: true,
-  });
-
-  console.log(result.result.value);
-} finally {
-  await closeClients();
-}
-```
-
-## 导出方法
-
-### `getClient(targetId, options)`
-
-获取指定 Target 的 CDP Client。
+### `getClient(targetId, options?)`
 
 ```js
 const client = await getClient(targetId);
-```
-
-第一次请求某个 Target 时，会通过 `chrome-remote-interface` 创建新连接；后续使用相同 Chrome 地址、端口和 Target ID 请求时，会返回同一个 Client。
-
-```js
-const client1 = await getClient(targetId);
-const client2 = await getClient(targetId);
-
-console.log(client1 === client2); // true
-```
-
-获得 Client 后，可以访问 Chrome DevTools Protocol 的各个 Domain：
-
-```js
-const client = await getClient(targetId);
-
-await client.Page.reload({
-  ignoreCache: true,
-});
 
 const result = await client.Runtime.evaluate({
-  expression: "document.readyState",
+  expression: "document.title",
   returnByValue: true,
 });
 ```
 
-如果 Client 创建失败，错误会继续向调用方抛出，同时对应的失败 Promise 会从缓存中删除。因此，下次调用 `getClient()` 时可以重新尝试连接。
+| 参数 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `targetId` | `string` | 是 | 要连接的 Chrome Target ID |
 
-### `closeClients(onClose)`
+- 使用 options：`cdpHost`、`cdpPort`。
+- 返回连接到该 Target 的 `chrome-remote-interface` client。
+- 缓存键为 `host:port:targetId`；相同连接参数会返回同一个 client。
+- 并发请求相同 Target 时，共用同一个“创建中”的 Promise，不会重复建立连接。
+- client 断开连接时，会自动从缓存中删除。
+- 创建连接失败时，该 Promise 会从缓存移除，后续调用可以重新连接。
+- 使用完成后应调用 `closeClients()` 关闭连接。
 
-关闭当前缓存中的所有 CDP Client，并清空缓存。可以通过可选的 `onClose` 回调，清理与各个 Target 关联的其它状态。
-
-```js
-await closeClients();
-```
-
-`onClose` 的调用形式如下：
-
-```js
-await onClose(targetId, {
-  cdpHost,
-  cdpPort,
-});
-```
-
-参数说明：
-
-| 参数 | 类型 | 说明 |
-| --- | --- | --- |
-| `targetId` | `string` | 当前 Client 对应的 Target ID |
-| `options.cdpHost` | `string` | 当前 Client 使用的 CDP 服务地址 |
-| `options.cdpPort` | `number` | 当前 Client 使用的 CDP 服务端口 |
-
-例如，在关闭 Client 后同时删除对应 Target 的鼠标状态：
+### `closeClients(onClose?)`
 
 ```js
-import { closeClients } from "welm-cdp/client";
-import { removeMouseState } from "welm-cdp/mouse";
-
-await closeClients(removeMouseState);
-```
-
-该方法适合在一项完整操作结束时统一调用：
-
-```js
-try {
-  await runTask();
-} finally {
-  await closeClients();
-}
-```
-
-调用 `closeClients()`：
-
-- 会在关闭连接前清空内部 Client 缓存；
-- 会关闭 Node.js 与 Chrome Target 之间的 CDP 连接；
-- 会在每个缓存项处理完成后调用一次可选的 `onClose`；
-- 会向 `onClose` 传入对应的 `targetId`、`cdpHost` 和 `cdpPort`；
-- 不会关闭 Chrome；
-- 不会关闭任何 Chrome Tab；
-- 会忽略单个 Client 创建失败、关闭失败或回调执行失败，继续处理其他 Client。
-
-即使某个 Client 创建失败或关闭失败，对应的 `onClose` 仍然会执行，以便清理与该 Target 关联的其它状态。
-
-如果传入的 `onClose` 不是函数，方法会抛出错误：
-
-```js
-await closeClients("cleanup");
-// Error: onClose must be a function
-```
-
-缓存清空后，再次调用 `getClient()` 会创建新的 CDP 连接：
-
-```js
-const client1 = await getClient(targetId);
-
-await closeClients();
-
-const client2 = await getClient(targetId);
-
-console.log(client1 === client2); // false
-```
-
-## Options
-
-`getClient()` 支持以下选项：
-
-| 选项 | 默认值 | 说明 |
-| --- | --- | --- |
-| `cdpHost` | `"127.0.0.1"` | Chrome CDP 服务地址 |
-| `cdpPort` | `9222` | Chrome CDP 服务端口 |
-
-示例：
-
-```js
-const client = await getClient(targetId, {
-  cdpHost: "127.0.0.1",
-  cdpPort: 9333,
-});
-```
-
-调用 `getClient()` 时使用的地址和端口，必须与启动 Chrome 时设置的 CDP 地址和端口一致。
-
-## Client 缓存
-
-### 缓存 Key
-
-每个 Client 使用下面的字符串作为缓存 Key：
-
-```text
-host:port:targetId
-```
-
-例如：
-
-```text
-127.0.0.1:9222:95ACD3E33B814637A86313C0F721410B
-```
-
-因此，以下任意字段不同，都会创建独立 Client：
-
-- `cdpHost`；
-- `cdpPort`；
-- `targetId`。
-
-### 缓存 Promise
-
-内部缓存的是创建 Client 的 Promise：
-
-```js
-Map<clientKey, Promise<CDP.Client>>
-```
-
-缓存 Promise 而不是等 Client 创建完成后再缓存，可以避免并发调用重复创建连接：
-
-```js
-const [client1, client2] = await Promise.all([
-  getClient(targetId),
-  getClient(targetId),
-]);
-```
-
-上面的两个调用会等待同一个创建 Promise，最终获得同一个 Client。
-
-## 自动断开与主动关闭
-
-### 自动断开
-
-Client 创建成功后会监听 `disconnect` 事件：
-
-```js
-client.on("disconnect", () => {
-  clientPromiseMap.delete(clientKey);
-});
-```
-
-以下情况可能导致连接自然断开：
-
-- 对应的 Chrome Tab 被关闭；
-- Chrome 退出；
-- CDP WebSocket 连接中断；
-- Client 被主动关闭。
-
-连接断开后，对应缓存会自动删除。下次调用 `getClient()` 时会重新创建连接。
-
-### 主动关闭
-
-如果 Node.js 操作已经结束，但 Chrome 和 Tab 仍然保留，CDP 连接不会自然断开。这时应主动调用：
-
-```js
-await closeClients();
-```
-
-可以将两种机制理解为：
-
-| 机制 | 作用 |
-| --- | --- |
-| `disconnect` 事件 | 被动删除已经失效的 Client 缓存 |
-| `closeClients()` | 在任务结束时主动关闭所有 CDP 连接 |
-
-两者不会冲突。`closeClients()` 主动关闭 Client 后，也可能触发 `disconnect` 事件；此时缓存已经清空，再次删除不会产生影响。
-
-## 推荐使用方式
-
-### 一项操作复用多个 Client
-
-```js
-import { getClient, closeClients } from "welm-cdp/client";
-
-async function main() {
-  const firstClient = await getClient(firstTargetId);
-  const secondClient = await getClient(secondTargetId);
-
-  await firstClient.Runtime.evaluate({
-    expression: "document.title",
-  });
-
-  await secondClient.Page.reload();
-}
-
 try {
   await main();
 } finally {
@@ -284,31 +55,31 @@ try {
 }
 ```
 
-### 在统一 Runner 中清理
+| 参数 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `onClose` | `(targetId, options) => void \| Promise<void>` | 否 | 每个缓存 client 完成处理后执行的清理回调 |
 
-如果项目通过统一的 `run()` 执行任务，可以把 `closeClients()` 放在 `finally` 中：
+回调收到：
 
 ```js
-import { closeClients } from "welm-cdp/client";
-
-export async function run(main) {
-  try {
-    return await main();
-  } finally {
-    await closeClients();
-  }
-}
+await closeClients(async (targetId, options) => {
+  // options = { cdpHost, cdpPort }
+});
 ```
 
-这样业务方法只需要调用 `getClient()`，不需要分别管理每个 Client 的关闭时机。
+- 关闭所有当前进程已缓存的 client，并返回 `Promise<void>`。
+- 先清空缓存，再逐个关闭 client；因此关闭期间新的 `getClient()` 调用可以创建新的 client。
+- client 创建失败、关闭失败，以及 `onClose` 回调失败都会被忽略，避免阻止其他 client 的清理。
+- 只关闭 CDP 连接，不会关闭 Chrome 进程或 Chrome 页面。
+- `onClose` 不是函数且不是 `undefined` 时抛出异常。
 
-## 注意事项
+## 命令行说明
 
-- 使用 `getClient()` 前，应先确保 Chrome CDP 服务已经启动。
-- `targetId` 必须对应当前 CDP 服务中仍然存在的 Target。
-- 相同 `cdpHost`、`cdpPort` 和 `targetId` 会复用同一个 Client。
-- Tab 被关闭后，Client 会自然断开并自动从缓存中删除，不需要额外关闭。
-- 任务结束但 Tab 继续保留时，应调用 `closeClients()` 主动释放 CDP 连接。
-- `closeClients()` 不会关闭 Chrome 或 Tab。
-- `closeClients()` 可以接收 `onClose(targetId, options)`，用于清理与 Target 关联的其它状态。
-- `closeClients()` 会忽略单个 Client 的创建、关闭或回调错误，因此通常适合放在清理阶段使用。
+`cmd/client.js` 提供：
+
+```text
+client get <targetId> [options]
+client close
+```
+
+`client get` 返回连接信息，而不是返回 CDP client 对象本身，因为该对象只能在当前 Node 进程中使用。普通 CLI 每次执行会启动新进程，因此 `client close` 主要用于同一进程内组合执行命令或手动测试；业务代码应直接使用上述 API。

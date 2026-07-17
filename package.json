@@ -26,7 +26,6 @@
   },
   "exports": {
     "./chrome": "./cdp/chrome.js",
-    "./target": "./cdp/target.js",
     "./client": "./cdp/client.js",
     "./runtime": "./cdp/runtime.js",
     "./dom": "./cdp/dom.js",

@@ -38,11 +38,16 @@
 // -----------------------------------------------------------------------------
 
 import CDP from "chrome-remote-interface";
+import { config } from "../infra/config.js";
 
 const defaultHost = "127.0.0.1";
 const defaultPort = 9222;
 const defaultTargetType = "page";
 const targetIdRE = /^[0-9A-F]{32}$/i;
+
+const configHost = config.get("cdp.host");
+const configPort = config.get("cdp.port");
+const configTargetType = config.get("cdp.targetType");
 
 // -----------------------------------------------------------------------------
 // Public API
@@ -74,9 +79,9 @@ const targetIdRE = /^[0-9A-F]{32}$/i;
  */
 export function getCdpOptions(options = {}) {
   return {
-    host: options.cdpHost ?? defaultHost,
-    port: options.cdpPort ?? defaultPort,
-    targetType: options.targetType ?? defaultTargetType,
+    host: options.cdpHost ?? configHost ?? defaultHost,
+    port: options.cdpPort ?? configPort ?? defaultPort,
+    targetType: options.targetType ?? configTargetType ?? defaultTargetType,
   };
 }
 

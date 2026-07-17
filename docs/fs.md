@@ -1,335 +1,204 @@
-# FS
+# File System API
 
-Last modified: 2026-07-16
-
-`welm-cdp/fs` 提供同步的本地文件系统工具，包含文件操作、文本/JSON/二进制/Base64 读写，以及递归文件和目录扫描。
-
-该入口不是 `node:fs` 的重新导出。它在 `node:fs` 之上提供更具体的便捷方法，例如自动创建父目录、默认禁止覆盖，以及生成统一的扫描结果。
-
-## Package Export
-
-`package.json` 将模块导出为：
-
-```json
-{
-  "exports": {
-    "./fs": "./fs/index.js"
-  }
-}
-```
-
-其它项目通过公共入口导入：
+`welm-cdp/fs` 提供本地文件的同步读写、移动、复制、删除、重命名及递归扫描能力。
 
 ```js
 import {
-  readFileText,
-  writeFileJson,
+  moveFileTo,
   copyFileTo,
-  scanFiles,
-} from "welm-cdp/fs";
-```
-
-不要依赖包内部文件：
-
-```js
-// 不推荐
-import { scanFiles } from "welm-cdp/fs/scan.js";
-```
-
-## 特性
-
-- 所有方法均为同步方法；
-- 写文件时自动创建缺失的父目录；
-- 写入、复制和移动默认不覆盖已有文件；
-- 支持文本、JSON、Buffer、`Uint8Array` 和 Base64；
-- 支持递归扫描文件和子目录；
-- 支持扩展名、名称关键词和隐藏项过滤；
-- 扫描结果包含由 `node:path.parse()` 生成的路径字段。
-
-## 快速开始
-
-```js
-import {
-  writeFileJson,
+  removeFile,
+  renameFile,
+  readFileText,
+  writeFileText,
   readFileJson,
+  writeFileJson,
+  readFileBuffer,
+  writeFileBuffer,
+  readFileBase64,
+  writeFileBase64,
   scanFiles,
+  scanDirs,
 } from "welm-cdp/fs";
+```
 
-writeFileJson(
-  "./data/config.json",
-  { enabled: true },
-  { overwrite: true },
-);
+全部 API 都是同步方法；不要在高并发或需要保持事件循环响应的热路径中调用。
 
-const config = readFileJson("./data/config.json");
+## API 一览
 
-const jsonFiles = scanFiles("./data", {
-  includeExts: ["json"],
+### 文件操作
+
+| 方法 | 返回值 | 特殊行为 |
+| --- | --- | --- |
+| `moveFileTo(filePath, toFilePath, options?)` | `string` | 跨文件系统自动回退为复制后删除 |
+| `copyFileTo(filePath, toFilePath, options?)` | `string` | 默认不覆盖 |
+| `removeFile(filePath)` | `boolean` | 删除已有普通文件 |
+| `renameFile(filePath, name)` | `string` | 仅同目录改名；可保留原扩展名 |
+
+### 内容读写
+
+| 方法 | 返回值 | 内容类型 |
+| --- | --- | --- |
+| `readFileText(filePath, options?)` | `string` | 文本 |
+| `writeFileText(filePath, text, options?)` | `string` | 文本 |
+| `readFileJson(filePath, options?)` | `*` | JSON |
+| `writeFileJson(filePath, value, options?)` | `string` | JSON |
+| `readFileBuffer(filePath)` | `Buffer` | 二进制 |
+| `writeFileBuffer(filePath, buffer, options?)` | `string` | `Buffer` 或 `Uint8Array` |
+| `readFileBase64(filePath)` | `string` | Base64 |
+| `writeFileBase64(filePath, base64, options?)` | `string` | Base64 或 Base64 data URL |
+
+### 递归扫描
+
+| 方法 | 返回值 | 扫描范围 |
+| --- | --- | --- |
+| `scanFiles(input, options?)` | `FileEntry[]` | 一个文件，或目录树中的全部文件 |
+| `scanDirs(dirPath, options?)` | `DirEntry[]` | 目录树中的全部子目录，不含根目录 |
+
+## 通用写入行为
+
+所有写入、复制与移动方法都会自动创建缺失的父目录。
+
+`overwrite` 默认都是 `false`：如果目标文件已存在，`moveFileTo()`、`copyFileTo()` 及全部 `writeFile...()` 方法都直接返回目标路径，**不会修改目标，也不会抛出“已存在”错误**。
+
+需要明确覆盖时：
+
+```js
+writeFileText("/tmp/config.txt", "new content", {
+  overwrite: true,
 });
 ```
 
-## 文件操作
+## 文件操作详情
 
-### `moveFileTo(filePath, toFilePath, options)`
-
-移动文件。目标父目录不存在时会自动创建；跨文件系统移动时会自动改用复制后删除源文件。
+### `moveFileTo(filePath, toFilePath, options?)`
 
 ```js
-const targetPath = moveFileTo(
-  "./temp/report.txt",
-  "./archive/report.txt",
-  { overwrite: true },
-);
+const newPath = moveFileTo("/tmp/a.txt", "/backup/a.txt");
 ```
 
-| 选项 | 默认值 | 说明 |
-| --- | --- | --- |
-| `overwrite` | `false` | 是否覆盖已存在的目标文件 |
+- 源路径必须是已有普通文件。
+- `toFilePath` 若已存在，必须也是普通文件。
+- `overwrite: true` 时，先删除已有目标文件，再移动。
+- 源与目标解析后相同，直接返回原路径。
+- 跨设备移动遇到 `EXDEV` 时，自动复制后删除源文件。
 
-当目标文件已存在且 `overwrite` 为 `false` 时，不移动源文件，直接返回目标路径。源路径和目标路径指向同一文件时，也直接返回源路径。
-
-返回目标文件路径 `string`。
-
-### `copyFileTo(filePath, toFilePath, options)`
-
-复制文件，并自动创建目标父目录。
+### `copyFileTo(filePath, toFilePath, options?)`
 
 ```js
-const targetPath = copyFileTo(
-  "./report.txt",
-  "./backup/report.txt",
-);
+const copiedPath = copyFileTo("/tmp/a.txt", "/backup/a.txt", {
+  overwrite: true,
+});
 ```
 
-| 选项 | 默认值 | 说明 |
-| --- | --- | --- |
-| `overwrite` | `false` | 是否覆盖已存在的目标文件 |
-
-当目标文件已存在且不允许覆盖时，直接返回目标路径。返回值为 `string`。
+- 源路径必须是已有普通文件。
+- `overwrite: true` 时覆盖已有目标文件；默认不覆盖。
+- 源与目标解析后相同，直接返回原路径。
 
 ### `removeFile(filePath)`
 
-删除一个已存在的文件：
-
 ```js
-removeFile("./temp/report.txt");
+removeFile("/tmp/a.txt");
 ```
 
-删除成功返回 `true`。路径不存在或指向目录时抛出错误。
+- 路径必须是已有普通文件，否则抛出异常。
+- 成功后返回 `true`。
+- 这是不可恢复的删除操作。
 
 ### `renameFile(filePath, name)`
 
-在原目录中重命名文件：
-
 ```js
-const newPath = renameFile("./report.txt", "final");
-// ./final.txt
+const newPath = renameFile("/tmp/a.txt", "b");
+// /tmp/b.txt
 ```
 
-如果 `name` 没有扩展名，会保留原扩展名。`name` 只能是文件名，不能包含目录路径。目标文件已存在时抛出错误。
+- `name` 必须是非空纯文件名，不能包含 macOS 或 Windows 路径分隔符。
+- 新名称未包含扩展名时，保留原文件扩展名；包含扩展名时使用新扩展名。
+- 目标文件已经存在时抛出异常；该方法没有 `overwrite` 选项。
+- 只在原目录内改名。
 
-## 文本和 JSON
+## 内容读写详情
 
-### `readFileText(filePath, options)`
+### 文本与 JSON
 
-读取文本文件：
-
-```js
-const text = readFileText("./notes.txt");
-```
-
-| 选项 | 默认值 | 说明 |
+| 方法 | Options | 特殊说明 |
 | --- | --- | --- |
-| `encoding` | `"utf8"` | Node.js 支持的文本编码 |
+| `readFileText(filePath, { encoding = "utf8" })` | `encoding` | 返回文本内容 |
+| `writeFileText(filePath, text, { encoding = "utf8", overwrite = false })` | `encoding`、`overwrite` | `text` 必须是字符串，可为空 |
+| `readFileJson(filePath, { encoding = "utf8" })` | `encoding` | 会移除 UTF-8 BOM 后再 `JSON.parse()` |
+| `writeFileJson(filePath, value, { spaces = 2, finalNewline = true, encoding = "utf8", overwrite = false })` | 如左 | 使用 `JSON.stringify()`；不可序列化值直接抛出异常 |
 
-返回文件内容字符串。
+### 二进制与 Base64
 
-### `writeFileText(filePath, text, options)`
-
-写入文本文件，允许写入空字符串：
-
-```js
-writeFileText("./notes.txt", "hello", {
-  overwrite: true,
-});
-```
-
-| 选项 | 默认值 | 说明 |
+| 方法 | Options | 特殊说明 |
 | --- | --- | --- |
-| `encoding` | `"utf8"` | 文本编码 |
-| `overwrite` | `false` | 是否覆盖已有文件 |
+| `readFileBuffer(filePath)` | 无 | 返回 `Buffer` |
+| `writeFileBuffer(filePath, buffer, { overwrite = false })` | `overwrite` | `buffer` 必须是 `Buffer` 或 `Uint8Array` |
+| `readFileBase64(filePath)` | 无 | 返回不带 data URL 前缀的 Base64 字符串 |
+| `writeFileBase64(filePath, base64, { overwrite = false })` | `overwrite` | 支持 `data:*;base64,...` 前缀；会去除所有空白 |
 
-返回目标文件路径。
+Base64 输入不是字符串、包含非法字符或长度无效时，`writeFileBase64()` 会抛出 `invalid base64`。
 
-### `readFileJson(filePath, options)`
+## 扫描 Options
 
-读取并解析 JSON 文件。文件开头的 UTF-8 BOM 会被自动移除。
+| 选项 | 类型 | 默认值 | `scanFiles` | `scanDirs` | 说明 |
+| --- | --- | --- | --- | --- | --- |
+| `includeExts` | `string \| string[]` | 无 | 是 | 否 | 仅包含这些扩展名；可写 `.mp3` 或 `mp3` |
+| `excludeExts` | `string \| string[]` | 无 | 是 | 否 | 排除这些扩展名 |
+| `includeKeywords` | `string \| string[]` | 无 | 是 | 是 | 名称包含任一关键字才返回 |
+| `excludeKeywords` | `string \| string[]` | 无 | 是 | 是 | 名称包含任一关键字时排除 |
+| `includeHidden` | `boolean` | `false` | 是 | 是 | 是否包含以 `.` 开头的文件或目录 |
 
-```js
-const value = readFileJson("./config.json");
-```
+扩展名与关键字比较都忽略大小写。传入空数组等同于不设置该过滤器；传入空白字符串会抛出异常。
 
-支持 `options.encoding`，默认值为 `"utf8"`。返回 `JSON.parse()` 的解析结果。
+## 扫描详情
 
-### `writeFileJson(filePath, value, options)`
-
-序列化并写入 JSON：
-
-```js
-writeFileJson("./config.json", { enabled: true }, {
-  spaces: 2,
-  finalNewline: true,
-  overwrite: true,
-});
-```
-
-| 选项 | 默认值 | 说明 |
-| --- | --- | --- |
-| `spaces` | `2` | JSON 缩进空格数 |
-| `finalNewline` | `true` | 是否在末尾追加换行 |
-| `encoding` | `"utf8"` | 文本编码 |
-| `overwrite` | `false` | 是否覆盖已有文件 |
-
-不能被 JSON 序列化的值会抛出错误。返回目标文件路径。
-
-## Buffer 和 Base64
-
-### `readFileBuffer(filePath)`
+### `scanFiles(input, options?)`
 
 ```js
-const buffer = readFileBuffer("./image.png");
-```
-
-返回 Node.js `Buffer`。
-
-### `writeFileBuffer(filePath, buffer, options)`
-
-```js
-writeFileBuffer("./image.png", buffer, {
-  overwrite: true,
-});
-```
-
-`buffer` 可以是 `Buffer` 或 `Uint8Array`。`options.overwrite` 默认为 `false`。
-
-### `readFileBase64(filePath)`
-
-```js
-const base64 = readFileBase64("./image.png");
-```
-
-返回不带 Data URL 前缀的 Base64 字符串。
-
-### `writeFileBase64(filePath, base64, options)`
-
-```js
-writeFileBase64("./image.png", base64, {
-  overwrite: true,
-});
-```
-
-支持纯 Base64 字符串以及带 `data:...;base64,` 前缀的 Data URL。`options.overwrite` 默认为 `false`。
-
-## 扫描
-
-### `scanFiles(input, options)`
-
-递归扫描文件。`input` 可以是文件路径或目录路径。
-
-```js
-const files = scanFiles("./media", {
+const files = scanFiles("/music", {
   includeExts: [".mp3", "flac"],
-  excludeKeywords: ["demo", "temp"],
-  includeHidden: false,
+  excludeKeywords: ["demo"],
 });
 ```
 
-| 选项 | 默认值 | 说明 |
-| --- | --- | --- |
-| `includeExts` | 未设置 | 只返回这些扩展名的文件 |
-| `excludeExts` | 未设置 | 排除这些扩展名的文件 |
-| `includeKeywords` | 未设置 | 文件名包含任一关键词时保留 |
-| `excludeKeywords` | 未设置 | 文件名包含任一关键词时排除 |
-| `includeHidden` | `false` | 是否包含隐藏文件和隐藏目录中的文件 |
+- `input` 可为单个文件或目录。
+- 输入不存在、隐藏（默认）或不是普通文件/目录时，返回 `[]`。
+- 目录输入会递归扫描所有子目录，只返回文件条目。
+- 过滤只决定条目是否返回，不会阻止进入不匹配的父目录。
 
-扩展名和关键词不区分大小写。单个字符串和字符串数组都可以使用；空数组等同于未设置过滤条件。不存在的路径返回空数组。
-
-每个结果包含：
+### `scanDirs(dirPath, options?)`
 
 ```js
+const dirs = scanDirs("/music", {
+  includeKeywords: "album",
+});
+```
+
+- `dirPath` 必须是目录；不存在或不是目录时返回 `[]`。
+- 递归返回全部子目录，不包含输入的根目录。
+- `includeExts`、`excludeExts` 不适用于目录。
+- 过滤只决定目录是否返回，不会阻止继续遍历该目录。
+
+### 扫描条目结构
+
+```js
+// FileEntry
 {
-  root,
-  dir,
-  base,
-  ext,
-  name,
-  filePath,
+  root: "/",
+  dir: "/music",
+  base: "song.mp3",
+  ext: ".mp3",
+  name: "song",
+  filePath: "/music/song.mp3",
+}
+
+// DirEntry
+{
+  root: "/",
+  dir: "/music",
+  base: "album",
+  ext: "",
+  name: "album",
+  dirPath: "/music/album",
 }
 ```
-
-### `scanDirs(dirPath, options)`
-
-递归扫描指定目录下的子目录，不包含根目录本身：
-
-```js
-const dirs = scanDirs("./media", {
-  includeKeywords: ["album"],
-  excludeKeywords: ["temp"],
-});
-```
-
-支持 `includeKeywords`、`excludeKeywords` 和 `includeHidden`。关键词只决定目录是否出现在结果中，不会阻止继续遍历不匹配的父目录。
-
-每个结果包含：
-
-```js
-{
-  root,
-  dir,
-  base,
-  ext,
-  name,
-  dirPath,
-}
-```
-
-## 覆盖行为
-
-所有写入、复制和移动方法默认都不会覆盖已有文件：
-
-```js
-writeFileText("./result.txt", "new content");
-```
-
-如果文件已经存在，方法返回目标路径并保留原内容。需要覆盖时显式传入：
-
-```js
-writeFileText("./result.txt", "new content", {
-  overwrite: true,
-});
-```
-
-## Command Adapter
-
-`cmd/fs.js` 为项目 CLI 提供 `FS_COMMANDS`。命令适配层没有通过 `package.json` 对外导出，而是由项目内部的 CLI 路由注册。
-
-提供的命令：
-
-```text
-fs move <source> <target>
-fs copy <source> <target>
-fs remove <file>
-fs rename <file> <name>
-fs read-text <file>
-fs write-text <file> [text...]
-fs read-json <file>
-fs write-json <file> <json>
-fs read-base64 <file>
-fs write-base64 <file> <base64>
-fs scan-files <path>
-fs scan-dirs <path>
-```
-
-命令处理器接收的 `options` 会传给对应的 FS 方法，因此 CLI 解析器可以提供 `overwrite`、`encoding`、`spaces`、`finalNewline`、扫描过滤条件等选项。
-
-Buffer 适合由 JavaScript 直接处理，因此命令适配层不提供 Buffer 的终端输入输出命令；需要通过终端传递二进制内容时，可以使用 Base64 命令。

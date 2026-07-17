@@ -29,7 +29,7 @@
 // -----------------------------------------------------------------------------
 
 import CDP from "chrome-remote-interface";
-import { getCdpOptions } from "./chrome.js";
+import { getCdpOptions } from "./target.js";
 
 // Map<clientKey, Promise<CDP.Client>>
 const clientPromiseMap = new Map();

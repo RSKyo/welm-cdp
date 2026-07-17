@@ -1,686 +1,127 @@
-# DOM
+# DOM API
 
-`dom.js` 基于 Chrome DevTools Protocol 的 Runtime 能力，在指定 Chrome Target 中执行 DOM 查询、读取、聚焦、滚动和等待操作。
-
-主要功能：
-
-- 使用 CSS Selector 查询页面元素；
-- 使用 `nth` 选择同一 Selector 匹配的指定元素；
-- 读取元素属性、文本、HTML 和位置；
-- 聚焦元素或将元素滚动到视口中；
-- 等待元素出现、消失、可见、可编辑或可点击；
-- 等待元素文本或元素数量满足指定条件。
-
-## 导入
-
-如果通过 `welm-cdp` 使用：
+`welm-cdp/dom` 提供 CSS 选择器查询、元素读取、聚焦、滚动及状态等待能力。
 
 ```js
-import {
-  focus,
-  scrollIntoView,
-  hasElement,
-  getElementInnerText,
-  waitElementAppear,
-  waitElementVisible,
-} from "welm-cdp/dom";
+import * as dom from "welm-cdp/dom";
 ```
 
-如果直接使用当前文件：
+## 通用参数与返回值
 
-```js
-import {
-  focus,
-  hasElement,
-  waitElementAppear,
-} from "./dom.js";
-```
+除元素数量方法外，DOM 方法的共同参数为：
 
-## 快速开始
+| 参数 | 类型 | 说明 |
+| --- | --- | --- |
+| `targetId` | `string` | Chrome Target ID |
+| `selector` | `string` | CSS 选择器 |
+| `options.nth` | `number` | 要选择的元素索引，默认 `0`；负数从末尾开始，例如 `-1` 为最后一个 |
 
-```js
-import {
-  focus,
-  getElementInnerText,
-  waitElementVisible,
-} from "welm-cdp/dom";
+普通读取与操作方法使用严格元素解析：找不到元素或索引越界会抛出异常。等待方法使用安全解析：找不到元素时继续等待。
 
-await waitElementVisible(targetId, "#search");
-await focus(targetId, "#search");
-
-const text = await getElementInnerText(
-  targetId,
-  "#result",
-);
-
-console.log(text);
-```
-
-所有方法的第一个参数都是 `targetId`。它表示需要执行 DOM 操作的 Chrome Target。
-
-## 元素选择
-
-### CSS Selector
-
-元素通过 `document.querySelectorAll()` 查询，因此 `selector` 使用标准 CSS Selector：
-
-```js
-await hasElement(targetId, "#dialog");
-await hasElement(targetId, ".item");
-await hasElement(targetId, "button[data-action='save']");
-```
-
-无效的 CSS Selector 会由浏览器抛出异常。
-
-### `nth`
-
-当 Selector 匹配多个元素时，可以通过 `options.nth` 选择其中一个。
-
-默认选择第一个元素：
-
-```js
-const text = await getElementInnerText(
-  targetId,
-  ".item",
-);
-```
-
-选择第二个元素：
-
-```js
-const text = await getElementInnerText(
-  targetId,
-  ".item",
-  {
-    nth: 1,
-  },
-);
-```
-
-负数从末尾开始选择：
-
-```js
-const text = await getElementInnerText(
-  targetId,
-  ".item",
-  {
-    nth: -1,
-  },
-);
-```
-
-常见值：
-
-| `nth` | 选择结果 |
-| --- | --- |
-| `0` | 第一个元素 |
-| `1` | 第二个元素 |
-| `-1` | 最后一个元素 |
-| `-2` | 倒数第二个元素 |
-
-`nth` 必须是整数，否则抛出：
-
-```text
-nth must be an integer
-```
-
-## DOM 操作
-
-### `focus(targetId, selector, options)`
-
-聚焦指定元素，成功后返回 `true`。
-
-```js
-await focus(targetId, "#search");
-```
-
-选择指定位置的元素：
-
-```js
-await focus(targetId, ".input", {
-  nth: -1,
-});
-```
-
-元素不存在或 `nth` 超出范围时会抛出异常。
-
-### `scrollIntoView(targetId, selector, options)`
-
-调用元素的 `scrollIntoView()`，成功后返回 `true`。
-
-```js
-await scrollIntoView(targetId, "#result");
-```
-
-默认配置：
+### `ElementBox`
 
 ```js
 {
-  block: "center",
-  inline: "center",
-  behavior: "instant"
-}
-```
-
-自定义滚动行为：
-
-```js
-await scrollIntoView(targetId, "#result", {
-  block: "start",
-  inline: "nearest",
-  behavior: "smooth",
-});
-```
-
-### `hasElement(targetId, selector, options)`
-
-检查指定元素是否存在。
-
-```js
-const exists = await hasElement(
-  targetId,
-  "#dialog",
-);
-```
-
-返回值：
-
-- 元素存在：`true`；
-- 元素不存在或 `nth` 超出范围：`false`。
-
-### `getElementsCount(targetId, selector, options)`
-
-返回匹配 Selector 的元素总数。
-
-```js
-const count = await getElementsCount(
-  targetId,
-  ".item",
-);
-```
-
-该方法统计全部匹配元素，不使用 `options.nth`。
-
-### `getElementAttribute(targetId, selector, name, options)`
-
-读取元素的指定属性。
-
-```js
-const href = await getElementAttribute(
-  targetId,
-  "a",
-  "href",
-);
-```
-
-元素没有该属性时抛出：
-
-```text
-attribute not found
-```
-
-### `getElementAttributes(targetId, selector, options)`
-
-读取元素的全部属性，以普通对象返回。
-
-```js
-const attributes = await getElementAttributes(
-  targetId,
-  "#search",
-);
-```
-
-示例返回值：
-
-```js
-{
-  id: "search",
-  type: "text",
-  placeholder: "Search"
-}
-```
-
-### `getElementInnerText(targetId, selector, options)`
-
-返回元素的 `innerText`。
-
-```js
-const text = await getElementInnerText(
-  targetId,
-  "#result",
-);
-```
-
-### `getElementInnerHTML(targetId, selector, options)`
-
-返回元素的 `innerHTML`。
-
-```js
-const html = await getElementInnerHTML(
-  targetId,
-  "#result",
-);
-```
-
-### `getElementOuterHTML(targetId, selector, options)`
-
-返回元素的 `outerHTML`，其中包含元素自身标签。
-
-```js
-const html = await getElementOuterHTML(
-  targetId,
-  "#result",
-);
-```
-
-### `getElementBox(targetId, selector, options)`
-
-返回元素相对于浏览器视口的位置和尺寸。
-
-```js
-const box = await getElementBox(
-  targetId,
-  "#submit",
-);
-```
-
-返回结构：
-
-```js
-{
-  x: 100,
-  y: 200,
+  x: 10,
+  y: 20,
   width: 120,
-  height: 36,
-  centerX: 160,
-  centerY: 218
+  height: 32,
+  centerX: 70,
+  centerY: 36,
 }
 ```
 
-坐标来自 `getBoundingClientRect()`，相对于视口，而不是整个页面。
+坐标均相对于当前 viewport，不是整页文档坐标。
 
-### `getElementCenter(targetId, selector, options)`
+### `WaitResult`
 
-返回元素相对于视口的中心点。
-
-```js
-const point = await getElementCenter(
-  targetId,
-  "#submit",
-);
-```
-
-返回结构：
+所有 `wait...` 方法都返回 runtime 的轮询结果：
 
 ```js
-{
-  x: 160,
-  y: 218
-}
+{ value, times }
 ```
 
-该坐标可以交给 Mouse 相关方法使用。
+其中 `value` 是命中时的布尔值、文本或元素数量，`times` 是轮询次数。
 
-## 等待元素状态
+## API 一览
 
-所有等待方法都通过 `poll()` 重复执行检查，直到条件满足或轮询超时。传入的轮询配置会继续传递给 `poll()`。
+### 元素操作与读取
 
-等待方法统一返回：
+| 方法 | 返回值 | 特殊说明 |
+| --- | --- | --- |
+| `focus(targetId, selector, options?)` | `Promise<boolean>` | 聚焦选定元素 |
+| `scrollIntoView(targetId, selector, options?)` | `Promise<boolean>` | 居中滚动元素，并等待位置与尺寸稳定 |
+| `hasElement(targetId, selector, options?)` | `Promise<boolean>` | 找不到元素时返回 `false`，不抛错 |
+| `getElementsCount(targetId, selector, options?)` | `Promise<number>` | 返回所有匹配元素数量；不使用 `nth` |
+| `getElementAttribute(targetId, selector, name, options?)` | `Promise<string>` | 属性不存在时抛错 |
+| `getElementAttributes(targetId, selector, options?)` | `Promise<object>` | 返回属性名到属性值的对象 |
+| `getElementInnerText(targetId, selector, options?)` | `Promise<string>` | 返回 `innerText` |
+| `getElementInnerHTML(targetId, selector, options?)` | `Promise<string>` | 返回 `innerHTML` |
+| `getElementOuterHTML(targetId, selector, options?)` | `Promise<string>` | 返回 `outerHTML` |
+| `getElementBox(targetId, selector, options?)` | `Promise<ElementBox>` | 返回 viewport 相对位置、尺寸与中心点 |
+| `getElementCenter(targetId, selector, options?)` | `Promise<{x, y}>` | 返回 `ElementBox` 的中心点 |
 
-```js
-{
-  value,
-  times
-}
-```
+### 元素状态等待
 
-字段说明：
-
-| 字段 | 说明 |
+| 方法 | 命中条件 |
 | --- | --- |
-| `value` | 最终满足 matcher 条件的表达式返回值 |
-| `times` | 从开始到匹配成功总共执行 expression 的次数 |
+| `waitElementAppear(targetId, selector, options?)` | 选定元素存在 |
+| `waitElementDisappear(targetId, selector, options?)` | 选定元素不存在或索引无效 |
+| `waitElementVisible(targetId, selector, options?)` | 存在、`display` 非 `none`、`visibility` 非 `hidden`、`opacity` 非 `0`，且宽高大于 0 |
+| `waitElementEditable(targetId, selector, options?)` | 可见、未禁用、非只读，且为 contenteditable、textarea 或可编辑 input |
+| `waitElementClickable(targetId, selector, options?)` | 可见，且 `disabled` 不存在并且 `aria-disabled` 不为 `"true"` |
 
-### `waitElementAppear(targetId, selector, options)`
+### 文本等待
 
-等待指定元素出现。
+| 方法 | 参数 | 命中条件 |
+| --- | --- | --- |
+| `waitElementTextIncludes(targetId, selector, expectedText, options?)` | `expectedText: string` | 修剪后的元素文本包含指定文本 |
+| `waitElementTextEquals(targetId, selector, expectedText, options?)` | `expectedText: string` | 修剪后的元素文本严格相等 |
+| `waitElementTextRegex(targetId, selector, pattern, options?)` | `pattern: string \| RegExp` | 修剪后的元素文本匹配正则表达式 |
 
-```js
-await waitElementAppear(targetId, "#dialog");
-```
+元素不存在时，三种文本等待都不会匹配，而是继续轮询。
 
-元素存在时匹配成功，返回结果中的 `value` 为 `true`。
+### 元素数量等待
 
-### `waitElementDisappear(targetId, selector, options)`
+| 方法 | 参数 | 命中条件 |
+| --- | --- | --- |
+| `waitElementCountEquals(targetId, selector, expectedCount, options?)` | `expectedCount: number` | 数量 `===` 指定值 |
+| `waitElementCountGreater(targetId, selector, expectedCount, options?)` | 同上 | 数量 `>` 指定值 |
+| `waitElementCountGreaterEquals(targetId, selector, expectedCount, options?)` | 同上 | 数量 `>=` 指定值 |
+| `waitElementCountLess(targetId, selector, expectedCount, options?)` | 同上 | 数量 `<` 指定值 |
+| `waitElementCountLessEquals(targetId, selector, expectedCount, options?)` | 同上 | 数量 `<=` 指定值 |
+| `waitElementCountNotEquals(targetId, selector, expectedCount, options?)` | 同上 | 数量 `!==` 指定值 |
 
-等待指定元素消失。
+## Options 清单
 
-```js
-await waitElementDisappear(
-  targetId,
-  ".loading",
-);
-```
+| 选项 | 类型 | 默认值 | 使用方法 | 说明 |
+| --- | --- | --- | --- | --- |
+| `nth` | `number` | `0` | 除元素数量方法外的全部方法 | 元素索引；必须为整数，支持负数 |
+| `cdpHost` | `string` | 保存的 CDP host，否则 `"127.0.0.1"` | 全部方法 | Chrome CDP 服务地址 |
+| `cdpPort` | `number` | 保存的 CDP port，否则 `9222` | 全部方法 | Chrome CDP 服务端口 |
+| `pollTimeout` | `number` | `30000` | `scrollIntoView`、全部 `wait...` 方法 | 最大等待时长，毫秒 |
+| `pollInterval` | `number` | `500`；`scrollIntoView` 为 `100` | 同上 | 两次检查间隔，毫秒 |
+| `matchTimes` | `number` | `1`；`scrollIntoView` 为 `3` | 同上 | 所需连续命中次数 |
+| `matchDuration` | `number` | `0` | `scrollIntoView`、全部 `wait...` 方法 | 最短连续命中时长，毫秒 |
+| `positionTolerance` | `number` | `0.5` | `scrollIntoView` | 相邻两次元素 box 的最大允许差异，CSS 像素；必须为非负数 |
 
-元素不存在时匹配成功，返回结果中的 `value` 为 `false`。
+所有公开 `wait...` 方法会设置自己的匹配条件，因此不需要、也不应通过 `options.matcher` 自定义条件。若需要任意自定义条件，请直接使用 `runtime.poll()`。
 
-### `waitElementVisible(targetId, selector, options)`
-
-等待元素变为可见。
-
-```js
-await waitElementVisible(targetId, "#dialog");
-```
-
-当前实现要求同时满足：
-
-- 元素存在；
-- `display` 不是 `none`；
-- `visibility` 不是 `hidden`；
-- `opacity` 不是 `0`；
-- 宽度大于 `0`；
-- 高度大于 `0`。
-
-### `waitElementEditable(targetId, selector, options)`
-
-等待元素变为可编辑。
+## 常用示例
 
 ```js
-await waitElementEditable(
-  targetId,
-  "#message",
-);
-```
+await focus(targetId, "#search", { nth: 0 });
 
-元素首先必须可见，并且不能设置：
+const href = await getElementAttribute(targetId, "a", "href");
+const box = await getElementBox(targetId, "#submit");
 
-```text
-aria-disabled="true"
-aria-readonly="true"
-```
+await waitElementVisible(targetId, "#dialog", {
+  pollTimeout: 10000,
+});
 
-当前实现将以下元素视为可编辑：
-
-- `contenteditable` 元素；
-- 未禁用且非只读的 `textarea`；
-- 未禁用、非只读，并且属于可编辑类型的 `input`。
-
-以下 `input` 类型不视为可编辑：
-
-```text
-button
-checkbox
-color
-file
-hidden
-image
-radio
-range
-reset
-submit
-```
-
-### `waitElementClickable(targetId, selector, options)`
-
-等待元素变为可点击。
-
-```js
-await waitElementClickable(
-  targetId,
-  "#submit",
-);
-```
-
-当前实现要求：
-
-- 元素存在且可见；
-- 元素没有设置 `disabled`；
-- 元素没有设置 `aria-disabled="true"`。
-
-文本输入框、按钮、单选框、复选框、下拉框和链接等元素都可以被判断为可点击。只读文本框仍然可以点击，但不会被判断为可编辑。
-
-## 等待元素文本
-
-文本等待方法读取：
-
-```js
-(el.innerText ?? el.textContent ?? "").trim()
-```
-
-元素不存在时返回 `null`；元素存在但文本为空时返回空字符串。这两个状态不会混淆。
-
-### `waitElementTextIncludes(targetId, selector, expectedText, options)`
-
-等待元素文本包含指定内容。
-
-```js
-const result = await waitElementTextIncludes(
+const { value: text } = await waitElementTextIncludes(
   targetId,
   "#status",
   "Ready",
 );
-
-console.log(result.value);
 ```
-
-成功后，`result.value` 是匹配到的完整元素文本。
-
-### `waitElementTextEquals(targetId, selector, expectedText, options)`
-
-等待元素文本与指定内容完全相等。
-
-```js
-const result = await waitElementTextEquals(
-  targetId,
-  "#status",
-  "Ready",
-);
-
-console.log(result.value);
-```
-
-可以使用空字符串等待一个已经存在但文本为空的元素：
-
-```js
-await waitElementTextEquals(
-  targetId,
-  "#status",
-  "",
-);
-```
-
-### `waitElementTextRegex(targetId, selector, pattern, options)`
-
-等待元素文本匹配正则表达式。
-
-```js
-const result = await waitElementTextRegex(
-  targetId,
-  "#status",
-  "^Ready",
-);
-
-console.log(result.value);
-```
-
-`pattern` 会用于创建 `RegExp`：
-
-```js
-const re = new RegExp(pattern);
-```
-
-每次匹配前都会将 `lastIndex` 重置为 `0`。
-
-## 等待元素数量
-
-元素数量通过 `document.querySelectorAll(selector).length` 获取。下列方法成功后，返回结果中的 `value` 是当前匹配到的元素数量。
-
-### `waitElementCountEquals(targetId, selector, expectedCount, options)`
-
-等待元素数量等于指定值。
-
-```js
-const result = await waitElementCountEquals(
-  targetId,
-  ".item",
-  5,
-);
-
-console.log(result.value);
-```
-
-### `waitElementCountGreater(targetId, selector, expectedCount, options)`
-
-等待元素数量大于指定值。
-
-```js
-await waitElementCountGreater(
-  targetId,
-  ".item",
-  0,
-);
-```
-
-### `waitElementCountGreaterEquals(targetId, selector, expectedCount, options)`
-
-等待元素数量大于或等于指定值。
-
-```js
-await waitElementCountGreaterEquals(
-  targetId,
-  ".item",
-  5,
-);
-```
-
-### `waitElementCountLess(targetId, selector, expectedCount, options)`
-
-等待元素数量小于指定值。
-
-```js
-await waitElementCountLess(
-  targetId,
-  ".loading",
-  1,
-);
-```
-
-### `waitElementCountLessEquals(targetId, selector, expectedCount, options)`
-
-等待元素数量小于或等于指定值。
-
-```js
-await waitElementCountLessEquals(
-  targetId,
-  ".item",
-  5,
-);
-```
-
-### `waitElementCountNotEquals(targetId, selector, expectedCount, options)`
-
-等待元素数量不等于指定值。
-
-```js
-await waitElementCountNotEquals(
-  targetId,
-  ".item",
-  0,
-);
-```
-
-## 严格解析与安全解析
-
-模块内部使用两种元素解析方式。
-
-### 严格解析
-
-以下方法要求元素必须存在：
-
-- `focus`；
-- `scrollIntoView`；
-- `getElementAttribute`；
-- `getElementAttributes`；
-- `getElementInnerText`；
-- `getElementInnerHTML`；
-- `getElementOuterHTML`；
-- `getElementBox`；
-- `getElementCenter`。
-
-元素不存在时抛出：
-
-```text
-element not found
-```
-
-`nth` 超出范围时抛出：
-
-```text
-element index out of range: INDEX
-```
-
-### 安全解析
-
-以下方法在元素不存在或 `nth` 超出范围时不会立即抛出异常：
-
-- `hasElement`；
-- 所有 `waitElement...` 方法。
-
-在单次检查中，它们会使用 `false` 或 `null` 表示元素尚未满足条件，让 `poll()` 继续轮询。
-
-## Options
-
-### DOM Options
-
-| 选项 | 默认值 | 说明 |
-| --- | --- | --- |
-| `nth` | `0` | 选择匹配结果中的指定元素，支持负数 |
-| `block` | `"center"` | `scrollIntoView` 的垂直对齐方式 |
-| `inline` | `"center"` | `scrollIntoView` 的水平对齐方式 |
-| `behavior` | `"instant"` | `scrollIntoView` 的滚动行为 |
-
-CDP 连接选项和轮询选项会继续传递给 `runtime.js`。
-
-### Poll Options
-
-所有 `waitElement...` 方法都支持以下轮询选项：
-
-| 选项 | 默认值 | 说明 |
-| --- | --- | --- |
-| `pollTimeout` | `30000` | 最大轮询时间，单位为毫秒 |
-| `pollInterval` | `500` | 两次检查之间的等待时间，单位为毫秒 |
-| `matchTimes` | `1` | 条件需要连续满足的次数 |
-
-各个 DOM 等待方法会提供自己的 matcher，因此调用方通常不需要传入 `matcher`。
-
-示例：
-
-```js
-await waitElementClickable(
-  targetId,
-  "#submit",
-  {
-    pollTimeout: 10000,
-    pollInterval: 200,
-    matchTimes: 2,
-  },
-);
-```
-
-### CDP Options
-
-| 选项 | 默认值 | 说明 |
-| --- | --- | --- |
-| `cdpHost` | `"127.0.0.1"` | Chrome CDP 服务地址 |
-| `cdpPort` | `9222` | Chrome CDP 服务端口 |
-
-## 注意事项
-
-- `selector` 必须是有效的 CSS Selector。
-- `nth` 从 `0` 开始，负数从匹配结果末尾开始选择。
-- `getElementBox` 和 `getElementCenter` 返回的是视口坐标，不是页面绝对坐标。
-- `waitElementVisible` 只检查样式和元素尺寸，不检查元素是否被其他元素遮挡。
-- `waitElementClickable` 不检查元素是否被其他元素遮挡。
-- `waitElementEditable` 只将文本输入类元素和 `contenteditable` 元素视为可编辑。
-- 文本等待会对文本执行 `trim()`，因此文本两端的空白不会参与匹配。
-- `waitElementTextRegex` 的无效正则表达式会在开始轮询前抛出异常。

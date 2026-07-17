@@ -1,6 +1,12 @@
-import { assertNonBlankString, assertHttpUrl } from "../infra/assert.js";
+import { assertHttpUrl, assertNonBlankString } from "../infra/assert.js";
 import {
+  setCdpHost,
+  setCdpPort,
+  setCdpTargetType,
+  setChromeBin,
+  setChromeUserDataDir,
   ensureChrome,
+  isChromeReady,
   listChromePages,
   findChromePage,
   findChromePages,
@@ -17,10 +23,18 @@ const CHROME_READY_OPTIONS =
   "--chrome-ready-timeout --chrome-ready-interval";
 const PAGE_OPTIONS = "--target-type";
 const PAGE_READY_OPTIONS = "--page-ready-timeout --page-ready-interval";
+const LEAVE_ABOUT_BLANK_OPTIONS =
+  "--leave-about-blank-timeout --leave-about-blank-interval";
 
 /**
  * Chrome CLI command registry.
  *
+ * chrome set-host [host]
+ * chrome set-port [port]
+ * chrome set-target-type [targetType]
+ * chrome set-bin <chromeBin>
+ * chrome set-user-data-dir <userDataDir>
+ * chrome status
  * chrome ready
  * chrome list
  * chrome find
@@ -32,6 +46,43 @@ const PAGE_READY_OPTIONS = "--page-ready-timeout --page-ready-interval";
  * chrome close
  */
 export const CHROME_COMMANDS = {
+  "set-host": {
+    handler: cmd_setCdpHost,
+    usage: "chrome set-host [host]",
+    description: "Save default Chrome CDP service host",
+  },
+
+  "set-port": {
+    handler: cmd_setCdpPort,
+    usage: "chrome set-port [port]",
+    description: "Save default Chrome CDP service port",
+  },
+
+  "set-target-type": {
+    handler: cmd_setCdpTargetType,
+    usage: "chrome set-target-type [targetType]",
+    description: "Save default Chrome target type",
+  },
+
+  "set-bin": {
+    handler: cmd_setChromeBin,
+    usage: "chrome set-bin <chromeBin>",
+    description: "Save Chrome executable path",
+  },
+
+  "set-user-data-dir": {
+    handler: cmd_setChromeUserDataDir,
+    usage: "chrome set-user-data-dir <userDataDir>",
+    description: "Save Chrome user data directory",
+  },
+
+  "status": {
+    handler: cmd_isChromeReady,
+    usage: "chrome status [options]",
+    description: "Check Chrome CDP service status",
+    options: CDP_OPTIONS,
+  },
+
   "ready": {
     handler: cmd_ensureChrome,
     usage: "chrome ready [options]",
@@ -71,21 +122,24 @@ export const CHROME_COMMANDS = {
     handler: cmd_reloadChromePage,
     usage: "chrome reload <keyword> [options]",
     description: "Reload the first matching Chrome page",
-    options: `${CDP_OPTIONS} ${PAGE_OPTIONS} ${PAGE_READY_OPTIONS}`,
+    options:
+      `${CDP_OPTIONS} ${PAGE_OPTIONS} ${PAGE_READY_OPTIONS} ${LEAVE_ABOUT_BLANK_OPTIONS}`,
   },
 
   "open": {
     handler: cmd_openChromePage,
     usage: "chrome open <url> [options]",
     description: "Open Chrome page",
-    options: `${CDP_OPTIONS} ${PAGE_OPTIONS} ${PAGE_READY_OPTIONS}`,
+    options:
+      `${CDP_OPTIONS} ${PAGE_OPTIONS} ${PAGE_READY_OPTIONS} ${LEAVE_ABOUT_BLANK_OPTIONS}`,
   },
 
   "ensure": {
     handler: cmd_ensureChromePage,
     usage: "chrome ensure <url> [options]",
     description: "Ensure Chrome page",
-    options: `${CDP_OPTIONS} ${PAGE_OPTIONS} ${PAGE_READY_OPTIONS}`,
+    options:
+      `${CDP_OPTIONS} ${PAGE_OPTIONS} ${PAGE_READY_OPTIONS} ${LEAVE_ABOUT_BLANK_OPTIONS}`,
   },
 
   "close": {
@@ -99,6 +153,115 @@ export const CHROME_COMMANDS = {
 // -----------------------------------------------------------------------------
 // CLI Commands
 // -----------------------------------------------------------------------------
+
+/**
+ * Save the default Chrome CDP service host.
+ */
+export async function cmd_setCdpHost({ argv, options } = {}) {
+  const [host] = argv;
+
+  if (host !== undefined) {
+    assertNonBlankString(host, "host");
+  }
+
+  const savedHost = setCdpHost(host);
+
+  options.reporter?.info?.(
+    `Chrome CDP service host saved: ${savedHost}`,
+    options,
+  );
+
+  return savedHost;
+}
+
+/**
+ * Save the default Chrome CDP service port.
+ */
+export async function cmd_setCdpPort({ argv, options } = {}) {
+  const [value] = argv;
+  const port = value === undefined ? undefined : Number(value);
+
+  if (port !== undefined && (!Number.isFinite(port) || port <= 0)) {
+    throw new Error("port must be a positive number");
+  }
+
+  const savedPort = setCdpPort(port);
+
+  options.reporter?.info?.(
+    `Chrome CDP service port saved: ${savedPort}`,
+    options,
+  );
+
+  return savedPort;
+}
+
+/**
+ * Save the default Chrome target type.
+ */
+export async function cmd_setCdpTargetType({ argv, options } = {}) {
+  const [targetType] = argv;
+
+  if (targetType !== undefined) {
+    assertNonBlankString(targetType, "targetType");
+  }
+
+  const savedTargetType = setCdpTargetType(targetType);
+
+  options.reporter?.info?.(
+    `Chrome target type saved: ${savedTargetType}`,
+    options,
+  );
+
+  return savedTargetType;
+}
+
+/**
+ * Save the Chrome executable path.
+ */
+export async function cmd_setChromeBin({ argv, options } = {}) {
+  const [chromeBin] = argv;
+  assertNonBlankString(chromeBin, "chromeBin");
+
+  const savedChromeBin = setChromeBin(chromeBin);
+
+  options.reporter?.info?.(
+    `Chrome executable path saved: ${savedChromeBin}`,
+    options,
+  );
+
+  return savedChromeBin;
+}
+
+/**
+ * Save the Chrome user data directory.
+ */
+export async function cmd_setChromeUserDataDir({ argv, options } = {}) {
+  const [userDataDir] = argv;
+  assertNonBlankString(userDataDir, "userDataDir");
+
+  const savedUserDataDir = setChromeUserDataDir(userDataDir);
+
+  options.reporter?.info?.(
+    `Chrome user data directory saved: ${savedUserDataDir}`,
+    options,
+  );
+
+  return savedUserDataDir;
+}
+
+/**
+ * Check whether the Chrome CDP service is ready.
+ */
+export async function cmd_isChromeReady({ options } = {}) {
+  const ready = await isChromeReady(options);
+
+  options.reporter?.info?.(
+    ready ? "Chrome CDP service is ready" : "Chrome CDP service is not ready",
+    options,
+  );
+
+  return ready;
+}
 
 /**
  * Ensure Chrome and the CDP service are ready.
