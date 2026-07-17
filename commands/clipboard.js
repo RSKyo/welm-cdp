@@ -1,4 +1,4 @@
-import { log } from "../../common/log.js";
+import { log } from "../common/log.js";
 import {
   readClipboardText,
   writeClipboardText,
@@ -6,7 +6,7 @@ import {
   writeClipboardFile,
   readClipboardImage,
   writeClipboardImage,
-} from "../../clipboard/index.js";
+} from "../clipboard/index.js";
 
 export const CLIPBOARD_COMMANDS = {
   "read-text": {

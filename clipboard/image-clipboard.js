@@ -1,11 +1,11 @@
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
-import path from "node:path";
+import nodePath from "node:path";
 
 import { runProgram, runPowerShell } from "./process.js";
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = nodePath.dirname(__filename);
 
 const IMAGE_EXTS = new Set([
   ".png",
@@ -68,13 +68,13 @@ function assertImageFile(imagePath) {
     throw new Error(`image path is not a file: ${imagePath}`);
   }
 
-  const imageExt = path.extname(imagePath).toLowerCase();
+  const imageExt = nodePath.extname(imagePath).toLowerCase();
 
   if (!IMAGE_EXTS.has(imageExt)) {
     throw new Error(`unsupported image format: ${imageExt}`);
   }
 
-  return path.resolve(imagePath);
+  return nodePath.resolve(imagePath);
 }
 
 function assertImagePath(imagePath) {
@@ -82,13 +82,13 @@ function assertImagePath(imagePath) {
     throw new Error("image path must be a non-empty string");
   }
 
-  const parsed = path.parse(path.resolve(imagePath));
+  const parsed = nodePath.parse(nodePath.resolve(imagePath));
 
-  return path.join(parsed.dir, `${parsed.name}.png`);
+  return nodePath.join(parsed.dir, `${parsed.name}.png`);
 }
 
 function assertClipboardBin() {
-  const clipboardBin = path.join(__dirname, "image-clipboard.bin");
+  const clipboardBin = nodePath.join(__dirname, "image-clipboard.bin");
 
   if (!fs.existsSync(clipboardBin)) {
     throw new Error(

@@ -1,10 +1,10 @@
-import { assertNonBlankString, assertNumber } from "../infra/assert.js";
+import { assertNonBlankString, assertNumber } from "../common/assert.js";
 import {
   removeMouseState,
   mouseMove,
   click,
   doubleClick,
-} from "../../cdp/mouse.js";
+} from "../cdp/mouse.js";
 
 const CDP_OPTIONS = "--host --port";
 const DOM_OPTIONS = "--nth --timeout --interval";

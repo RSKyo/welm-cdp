@@ -1,5 +1,5 @@
-import { log } from "../../common/log.js";
-import { assertHttpUrl, assertNonBlankString } from "../../common/assert.js";
+import { log } from "../common/log.js";
+import { assertHttpUrl, assertNonBlankString } from "../common/assert.js";
 import {
   setCdpHost,
   setCdpPort,
@@ -16,7 +16,7 @@ import {
   openChromePage,
   ensureChromePage,
   closeChromePage,
-} from "../../cdp/chrome.js";
+} from "../cdp/chrome.js";
 
 const CDP_OPTIONS = "--host --port";
 const CHROME_OPTIONS = "--chrome-bin --user-data-dir";

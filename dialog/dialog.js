@@ -37,12 +37,12 @@
 
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
-import path from "node:path";
+import nodePath from "node:path";
 
 import { runProgram, runPowerShell } from "./process.js";
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = nodePath.dirname(__filename);
 
 // Native binaries
 const dialogBin = process.platform === "darwin" ? assertDialogBin() : null;
@@ -230,7 +230,7 @@ export async function selectSavePath(options = {}) {
 // -----------------------------------------------------------------------------
 
 function assertDialogBin() {
-  const dialogBin = path.join(__dirname, "dialog.bin");
+  const dialogBin = nodePath.join(__dirname, "dialog.bin");
 
   if (!fs.existsSync(dialogBin)) {
     throw new Error(

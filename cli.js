@@ -11,7 +11,7 @@ import { MOUSE_COMMANDS } from "./commands/mouse.js";
 
 import { CLIPBOARD_COMMANDS } from "./commands/clipboard.js";
 import { DIALOG_COMMANDS } from "./commands/dialog.js";
-import { FILE_COMMANDS } from "./commands/file.js";
+import { FS_COMMANDS } from "./commands/fs.js";
 
 const COMMAND_GROUPS = {
   target: TARGET_COMMANDS,
@@ -23,7 +23,7 @@ const COMMAND_GROUPS = {
 
   clipboard: CLIPBOARD_COMMANDS,
   dialog: DIALOG_COMMANDS,
-  file: FILE_COMMANDS,
+  fs: FS_COMMANDS,
 };
 
 run(COMMAND_GROUPS, {

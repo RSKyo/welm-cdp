@@ -1,5 +1,5 @@
-import { log } from "../../common/log.js";
-import { assertHttpUrl, assertNonBlankString } from "../../common/assert.js";
+import { log } from "../common/log.js";
+import { assertHttpUrl, assertNonBlankString } from "../common/assert.js";
 import {
   getCdpOptions,
   listTargets,
@@ -10,7 +10,7 @@ import {
   reloadTarget,
   openTarget,
   closeTarget,
-} from "../../cdp/target.js";
+} from "../cdp/target.js";
 
 const CDP_OPTIONS = "--host --port";
 const TARGET_TYPE_OPTIONS = "--target-type";
