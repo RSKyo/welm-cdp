@@ -1,7 +1,7 @@
-import { log } from "../common/log.js";
-import { assertNonBlankString } from "../common/assert.js";
-import { getClient, closeClients } from "../cdp/client.js";
-import { getCdpOptions } from "../cdp/target.js";
+import { log } from "../../common/log.js";
+import { assertNonBlankString } from "../../common/assert.js";
+import { getClient, closeClients } from "../../cdp/client.js";
+import { getCdpOptions } from "../../cdp/target.js";
 
 const CDP_OPTIONS = "--host --port";
 

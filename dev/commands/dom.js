@@ -1,4 +1,4 @@
-import { assertNonBlankString } from "../common/assert.js";
+import { assertNonBlankString } from "../../common/assert.js";
 import {
   focus,
   scrollIntoView,
@@ -25,7 +25,7 @@ import {
   waitElementCountLess,
   waitElementCountLessEquals,
   waitElementCountNotEquals,
-} from "../cdp/dom.js";
+} from "../../cdp/dom.js";
 
 const CDP_OPTIONS = "--host --port";
 const ELEMENT_OPTIONS = "--nth";

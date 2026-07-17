@@ -1,4 +1,4 @@
-import { log } from "../common/log.js";
+import { log } from "../../common/log.js";
 import {
   moveFileTo,
   copyFileTo,
@@ -12,7 +12,7 @@ import {
   writeFileBase64,
   scanFiles,
   scanDirs,
-} from "../fs/index.js";
+} from "../../fs/index.js";
 
 export const FS_COMMANDS = {
   move: {

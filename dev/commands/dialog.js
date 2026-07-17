@@ -1,10 +1,10 @@
-import { log } from "../common/log.js";
+import { log } from "../../common/log.js";
 import {
   selectFolder,
   selectFile,
   selectFiles,
   selectSavePath,
-} from "../dialog/dialog.js";
+} from "../../dialog/dialog.js";
 
 export const DIALOG_COMMANDS = {
   folder: {
