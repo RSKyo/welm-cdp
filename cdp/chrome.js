@@ -56,6 +56,9 @@ import { log } from "../common/log.js";
 import { config } from "../common/config.js";
 import {
   getCdpOptions,
+  setCdpHost,
+  setCdpPort,
+  setCdpTargetType,
   listTargets,
   getTarget,
   findTargets,
@@ -65,6 +68,8 @@ import {
   openTarget,
   closeTarget,
 } from "./target.js";
+
+export { setCdpHost, setCdpPort, setCdpTargetType };
 
 const defaultChromeReadyTimeout = 15000;
 const defaultChromeReadyInterval = 200;
@@ -76,87 +81,6 @@ const defaultPageReadyInterval = 200;
 // -----------------------------------------------------------------------------
 // Public API: Chrome
 // -----------------------------------------------------------------------------
-
-/**
- * Persist the Chrome CDP service host in the shared Welm config.
- *
- * The host is stored at cdp.host in config.json.
- *
- * @example
- * setCdpHost("127.0.0.1");
- *
- * @param {string} [host="127.0.0.1"]
- * Non-empty Chrome CDP service host.
- *
- * @returns {string}
- * Saved Chrome CDP service host.
- *
- * @throws {Error}
- * Throws if host is not a non-empty string.
- */
-export function setCdpHost(host = "127.0.0.1") {
-  if (typeof host !== "string" || host.trim() === "") {
-    throw new Error("host must be a non-empty string");
-  }
-
-  config.set("cdp.host", host);
-
-  return host;
-}
-
-/**
- * Persist the Chrome CDP service port in the shared Welm config.
- *
- * The port is stored at cdp.port in config.json.
- *
- * @example
- * setCdpPort(9222);
- *
- * @param {number} [port=9222]
- * Positive Chrome CDP service port.
- *
- * @returns {number}
- * Saved Chrome CDP service port.
- *
- * @throws {Error}
- * Throws if port is not a positive number.
- */
-export function setCdpPort(port = 9222) {
-  if (typeof port !== "number" || port <= 0) {
-    throw new Error("port must be a positive number");
-  }
-
-  config.set("cdp.port", port);
-
-  return port;
-}
-
-/**
- * Persist the default Chrome target type in the shared Welm config.
- *
- * The target type is stored at cdp.targetType in config.json.
- *
- * @example
- * setCdpTargetType("page");
- *
- * @param {string} [targetType="page"]
- * Non-empty Chrome target type.
- *
- * @returns {string}
- * Saved Chrome target type.
- *
- * @throws {Error}
- * Throws if targetType is not a non-empty string.
- */
-export function setCdpTargetType(targetType = "page") {
-  if (typeof targetType !== "string" || targetType.trim() === "") {
-    throw new Error("targetType must be a non-empty string");
-  }
-
-  config.set("cdp.targetType", targetType);
-
-  return targetType;
-}
 
 /**
  * Persist the Chrome executable path in the shared Welm config.

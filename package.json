@@ -36,6 +36,8 @@
 
     "./cli/runner": "./cli/runner.js",
 
+    "./web": "./web/index.js",
+
     "./fs": "./fs/index.js",
     "./clipboard": "./clipboard/index.js",
     "./dialog": "./dialog/dialog.js"

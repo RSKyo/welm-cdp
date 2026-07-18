@@ -40,14 +40,19 @@
 import CDP from "chrome-remote-interface";
 import { config } from "../common/config.js";
 
+const targetIdRE = /^[0-9A-F]{32}$/i;
+
+const configHostKeyPath = "cdp.host";
+const configPortKeyPath = "cdp.port";
+const configTargetTypeKeyPath = "cdp.targetType";
+
 const defaultHost = "127.0.0.1";
 const defaultPort = 9222;
 const defaultTargetType = "page";
-const targetIdRE = /^[0-9A-F]{32}$/i;
 
-const configHost = config.get("cdp.host");
-const configPort = config.get("cdp.port");
-const configTargetType = config.get("cdp.targetType");
+let configHost = config.get(configHostKeyPath);
+let configPort = config.get(configPortKeyPath);
+let configTargetType = config.get(configTargetTypeKeyPath);
 
 // -----------------------------------------------------------------------------
 // Public API
@@ -83,6 +88,33 @@ export function getCdpOptions(options = {}) {
     port: options.cdpPort ?? configPort ?? defaultPort,
     targetType: options.targetType ?? configTargetType ?? defaultTargetType,
   };
+}
+
+export function setCdpHost(host = defaultHost) {
+  assertNonBlankString(host, "host");
+
+  config.set(configHostKeyPath, host);
+  configHost = host;
+
+  return host;
+}
+
+export function setCdpPort(port = defaultPort) {
+  assertPort(port);
+
+  config.set(configPortKeyPath, port);
+  configPort = port;
+
+  return port;
+}
+
+export function setCdpTargetType(targetType = defaultTargetType) {
+  assertNonBlankString(targetType, "targetType");
+
+  config.set(configTargetTypeKeyPath, targetType);
+  configTargetType = targetType;
+
+  return targetType;
 }
 
 /**
@@ -434,6 +466,20 @@ export async function closeTarget(targetId, options = {}) {
 // -----------------------------------------------------------------------------
 // Private Helpers
 // -----------------------------------------------------------------------------
+
+function assertNonBlankString(value, fieldName) {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new Error(`${fieldName} must be a non-empty string`);
+  }
+}
+
+function assertPort(port) {
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error("port must be an integer between 1 and 65535");
+  }
+
+  return port;
+}
 
 function isTargetId(value) {
   return typeof value === "string" && targetIdRE.test(value);
