@@ -141,7 +141,7 @@ export async function startServer(absoluteServerFilePath, options = {}) {
   assertAbsolutePath(absoluteServerFilePath, "absoluteServerFilePath");
   assertExistingFile(absoluteServerFilePath, "absoluteServerFilePath");
 
-  const { host, port } = getServerOptions(options);
+  const { host, port, serverUrl } = getServerOptions(options);
 
   log.progress("Ensuring web server is running...", options);
 
@@ -201,17 +201,13 @@ export async function startServer(absoluteServerFilePath, options = {}) {
   child.unref();
 
   try {
-    await Promise.race([
-      waitServerReady(waitOptions),
-      childFailed,
-    ]);
+    await Promise.race([waitServerReady(waitOptions), childFailed]);
   } catch (error) {
     if (child.exitCode === null && child.signalCode === null) {
       child.kill();
     }
 
-    const detail =
-      error instanceof Error ? error.message : String(error);
+    const detail = error instanceof Error ? error.message : String(error);
 
     const message = options.verbose
       ? detail
@@ -229,7 +225,7 @@ export async function startServer(absoluteServerFilePath, options = {}) {
     child.off("exit", childExitHandler);
   }
 
-  log.progressDone("Web server is ready.", options);
+  log.progressDone(`Web server started: ${serverUrl}`, options);
 
   return true;
 }
