@@ -1,4 +1,11 @@
-// #region Public API 断言
+import fs from "node:fs";
+import nodePath from "node:path";
+
+// -----------------------------------------------------------------------------
+// Public API
+// -----------------------------------------------------------------------------
+
+// Required
 
 export function assertRequired(value, fieldName = "value") {
   if (isNullish(value)) {
@@ -7,6 +14,8 @@ export function assertRequired(value, fieldName = "value") {
 
   return value;
 }
+
+// String
 
 export function assertString(value, fieldName = "value") {
   if (!isString(value)) {
@@ -17,12 +26,14 @@ export function assertString(value, fieldName = "value") {
 }
 
 export function assertNonBlankString(value, fieldName = "value") {
-  if (!isString(value) || isBlankString(value)) {
+  if (!isNonBlankString(value)) {
     throw new Error(`${fieldName} must not be blank`);
   }
 
   return value;
 }
+
+// Number
 
 export function assertNumber(value, fieldName = "value") {
   if (!isNumber(value)) {
@@ -56,6 +67,8 @@ export function assertNegative(value, fieldName = "value") {
   return value;
 }
 
+// Boolean
+
 export function assertBoolean(value, fieldName = "value") {
   if (!isBoolean(value)) {
     throw new Error(`${fieldName} must be a boolean`);
@@ -63,6 +76,8 @@ export function assertBoolean(value, fieldName = "value") {
 
   return value;
 }
+
+// Array
 
 export function assertArray(value, fieldName = "value") {
   if (!isArray(value)) {
@@ -80,6 +95,16 @@ export function assertNonEmptyArray(value, fieldName = "value") {
   return value;
 }
 
+export function assertNonBlankStringOrArray(value, fieldName = "value") {
+  if (isNonBlankString(value) || isArray(value)) {
+    return value;
+  }
+
+  throw new Error(`${fieldName} must be a non-blank string or an array`);
+}
+
+// Object
+
 export function assertPlainObject(value, fieldName = "value") {
   if (!isPlainObject(value)) {
     throw new Error(`${fieldName} must be a plain object`);
@@ -88,6 +113,8 @@ export function assertPlainObject(value, fieldName = "value") {
   return value;
 }
 
+// Email
+
 export function assertEmail(value, fieldName = "value") {
   if (!isValidEmail(value)) {
     throw new Error(`${fieldName} must be a valid email address`);
@@ -95,6 +122,8 @@ export function assertEmail(value, fieldName = "value") {
 
   return value;
 }
+
+// URL
 
 export function assertUrl(value, fieldName = "value") {
   if (!isValidUrl(value)) {
@@ -112,82 +141,100 @@ export function assertHttpUrl(value, fieldName = "value") {
   return value;
 }
 
-export function assertStringOrArray(value, fieldName = "value") {
-  if (isString(value) || isArray(value)) {
-    return value;
-  }
-
-  throw new Error(`${fieldName} must be a string or an array`);
-}
-
-export function assertNonBlankStringOrNonEmptyArray(
-  value,
-  fieldName = "value",
-) {
-  if (isNonBlankString(value) || isNonEmptyArray(value)) {
-    return value;
-  }
-
-  throw new Error(
-    `${fieldName} must be a non-blank string or a non-empty array`,
-  );
-}
+// Path
 
 export function assertPath(value, fieldName = "value") {
-  if (!isPathLike(value)) {
+  if (!isNonBlankString(value) || value.includes("\0")) {
     throw new Error(`${fieldName} must be a valid path`);
   }
 
   return value;
 }
 
-// #endregion
+export function assertAbsolutePath(value, fieldName = "value") {
+  assertPath(value, fieldName);
 
-// #region Private Helper 原子判断
+  if (!nodePath.isAbsolute(value)) {
+    throw new Error(`${fieldName} must be an absolute path`);
+  }
+
+  return value;
+}
+
+export function assertExistingPath(value, fieldName = "value") {
+  assertPath(value, fieldName);
+
+  if (!fs.existsSync(value)) {
+    throw new Error(`${fieldName} does not exist: ${value}`);
+  }
+
+  return value;
+}
+
+export function assertExistingFile(value, fieldName = "value") {
+  assertExistingPath(value, fieldName);
+
+  if (!fs.statSync(value).isFile()) {
+    throw new Error(`${fieldName} is not a file: ${value}`);
+  }
+
+  return value;
+}
+
+// -----------------------------------------------------------------------------
+// Private Helpers
+// -----------------------------------------------------------------------------
 
 // Nullish
-const isNullish = (v) => v === null || v === undefined;
+
+const isNullish = (value) => value === null || value === undefined;
 
 // String
-const isString = (v) => typeof v === "string";
 
-const isBlankString = (v) => typeof v === "string" && v.trim() === "";
+const isString = (value) => typeof value === "string";
 
-const isNonBlankString = (v) => typeof v === "string" && v.trim() !== "";
+const isNonBlankString = (value) =>
+  typeof value === "string" && value.trim() !== "";
 
 // Number
-const isNumber = (v) => typeof v === "number" && Number.isFinite(v);
 
-const isInteger = (v) => Number.isInteger(v);
+const isNumber = (value) => typeof value === "number" && Number.isFinite(value);
 
-const isPositive = (v) => isNumber(v) && v > 0;
+const isInteger = (value) => isNumber(value) && Number.isInteger(value);
 
-const isNegative = (v) => isNumber(v) && v < 0;
+const isPositive = (value) => isNumber(value) && value > 0;
+
+const isNegative = (value) => isNumber(value) && value < 0;
 
 // Boolean
-const isBoolean = (v) => typeof v === "boolean";
+
+const isBoolean = (value) => typeof value === "boolean";
 
 // Array
-const isArray = (v) => Array.isArray(v);
 
-const isNonEmptyArray = (v) => Array.isArray(v) && v.length > 0;
+const isArray = (value) => Array.isArray(value);
+
+const isNonEmptyArray = (value) => Array.isArray(value) && value.length > 0;
 
 // Object
-const isPlainObject = (v) => {
-  if (Object.prototype.toString.call(v) !== "[object Object]") {
+
+const isPlainObject = (value) => {
+  if (Object.prototype.toString.call(value) !== "[object Object]") {
     return false;
   }
 
-  const proto = Object.getPrototypeOf(v);
+  const proto = Object.getPrototypeOf(value);
 
   return proto === Object.prototype || proto === null;
 };
 
 // Email
-const isValidEmail = (v) =>
-  typeof v === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+
+const isValidEmail = (value) =>
+  typeof value === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
 // URL
+
 function parseUrl(value) {
   if (typeof value !== "string") {
     return null;
@@ -207,21 +254,3 @@ const isHttpUrl = (value) => {
 
   return url?.protocol === "http:" || url?.protocol === "https:";
 };
-
-const isPathLike = (value) => {
-  if (typeof value !== "string" || value.length === 0) {
-    return false;
-  }
-
-  return (
-    value.includes("/") ||
-    value.includes("\\") ||
-    value === "." ||
-    value === ".." ||
-    value.startsWith("./") ||
-    value.startsWith("../") ||
-    value.startsWith("~/")
-  );
-};
-
-// #endregion

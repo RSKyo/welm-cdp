@@ -38,6 +38,8 @@
 
     "./web": "./web/index.js",
 
+    "./utils": "./utils/index.js",
+
     "./fs": "./fs/index.js",
     "./clipboard": "./clipboard/index.js",
     "./dialog": "./dialog/dialog.js"

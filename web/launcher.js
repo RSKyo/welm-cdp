@@ -138,6 +138,7 @@ export async function isServerReady(options = {}) {
  * If the server file is invalid or the server does not become ready in time.
  */
 export async function startServer(absoluteServerFilePath, options = {}) {
+  assertAbsolutePath(absoluteServerFilePath, "absoluteServerFilePath");
   assertExistingFile(absoluteServerFilePath, "absoluteServerFilePath");
 
   const { host, port } = getServerOptions(options);
@@ -155,6 +156,16 @@ export async function startServer(absoluteServerFilePath, options = {}) {
   const serverHostField = options.serverHostField ?? defaultHostField;
   const serverPortField = options.serverPortField ?? defaultPortField;
 
+  const abortController = new AbortController();
+  const signal = options.signal
+    ? AbortSignal.any([options.signal, abortController.signal])
+    : abortController.signal;
+
+  const waitOptions = {
+    ...options,
+    signal,
+  };
+
   const child = spawn(process.execPath, [absoluteServerFilePath], {
     cwd: nodePath.dirname(absoluteServerFilePath),
     env: {
@@ -166,10 +177,58 @@ export async function startServer(absoluteServerFilePath, options = {}) {
     stdio,
   });
 
-  log.progressDone(`Web server process started (PID: ${child.pid}).`, options);
+  let childErrorHandler;
+  let childExitHandler;
+
+  const childFailed = new Promise((_, reject) => {
+    childErrorHandler = (error) => {
+      reject(new Error(`Failed to start child process: ${error.message}`));
+    };
+
+    childExitHandler = (code, signal) => {
+      if (signal) {
+        reject(new Error(`Child process was terminated by ${signal}`));
+        return;
+      }
+
+      reject(new Error(`Child process exited with code ${code}`));
+    };
+
+    child.once("error", childErrorHandler);
+    child.once("exit", childExitHandler);
+  });
+
   child.unref();
 
-  await waitServerReady(options);
+  try {
+    await Promise.race([
+      waitServerReady(waitOptions),
+      childFailed,
+    ]);
+  } catch (error) {
+    if (child.exitCode === null && child.signalCode === null) {
+      child.kill();
+    }
+
+    const detail =
+      error instanceof Error ? error.message : String(error);
+
+    const message = options.verbose
+      ? detail
+      : `${detail}\nRun again with --verbose to see server output.`;
+
+    log.progressDone(message, options);
+
+    throw new Error("Web server failed to start.", {
+      cause: error,
+    });
+  } finally {
+    abortController.abort();
+
+    child.off("error", childErrorHandler);
+    child.off("exit", childExitHandler);
+  }
+
   log.progressDone("Web server is ready.", options);
 
   return true;
@@ -318,24 +377,45 @@ function assertPort(port) {
   return port;
 }
 
-function assertExistingFile(filePath, fieldName = "filePath") {
-  if (
-    typeof filePath !== "string" ||
-    filePath.length === 0 ||
-    filePath.includes("\0")
-  ) {
-    throw new Error(`invalid ${fieldName}: ${filePath}`);
+const isNonBlankString = (value) =>
+  typeof value === "string" && value.trim() !== "";
+
+function assertPath(value, fieldName = "value") {
+  if (!isNonBlankString(value) || value.includes("\0")) {
+    throw new Error(`${fieldName} must be a valid path`);
   }
 
-  if (!fs.existsSync(filePath)) {
-    throw new Error(`path does not exist: ${filePath}`);
+  return value;
+}
+
+function assertAbsolutePath(value, fieldName = "value") {
+  assertPath(value, fieldName);
+
+  if (!nodePath.isAbsolute(value)) {
+    throw new Error(`${fieldName} must be an absolute path`);
   }
 
-  if (!fs.statSync(filePath).isFile()) {
-    throw new Error(`not a file: ${filePath}`);
+  return value;
+}
+
+function assertExistingPath(value, fieldName = "value") {
+  assertPath(value, fieldName);
+
+  if (!fs.existsSync(value)) {
+    throw new Error(`${fieldName} does not exist: ${value}`);
   }
 
-  return filePath;
+  return value;
+}
+
+function assertExistingFile(value, fieldName = "value") {
+  assertExistingPath(value, fieldName);
+
+  if (!fs.statSync(value).isFile()) {
+    throw new Error(`${fieldName} is not a file: ${value}`);
+  }
+
+  return value;
 }
 
 function sleep(ms) {
@@ -365,10 +445,12 @@ async function waitServerReady(options = {}) {
 
   const timeout = options.serverReadyTimeout ?? defaultTimeout;
   const interval = options.serverReadyInterval ?? defaultInterval;
-
+  const signal = options.signal;
   const start = Date.now();
 
   while (Date.now() - start < timeout) {
+    signal?.throwIfAborted();
+
     if (await isServerReady(options)) {
       return true;
     }
@@ -379,5 +461,7 @@ async function waitServerReady(options = {}) {
     await sleep(Math.min(interval, remaining));
   }
 
-  throw new Error(`Web server not ready: ${serverUrl}`);
+  throw new Error(
+    `Web server not ready: ${serverUrl}. Run again with --verbose to see server output.`,
+  );
 }
