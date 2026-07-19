@@ -47,9 +47,6 @@ import {
 const defaultHost = "localhost";
 const defaultPort = 3000;
 
-const defaultHostField = "serverHost";
-const defaultPortField = "serverPort";
-
 const defaultTimeout = 20000;
 const defaultInterval = 200;
 const defaultRequestTimeout = 500;
@@ -116,12 +113,6 @@ export async function isServerReady(options = {}) {
  * @param {number} [options.serverPort=3000]
  * Port passed to the server process and used for readiness checks.
  *
- * @param {string} [options.serverHostField="serverHost"]
- * Environment variable field used to pass the host to the child process.
- *
- * @param {string} [options.serverPortField="serverPort"]
- * Environment variable field used to pass the port to the child process.
- *
  * @param {number} [options.serverReadyTimeout=20000]
  * Maximum time in milliseconds to wait for the server to become ready.
  *
@@ -153,8 +144,6 @@ export async function startServer(absoluteServerFilePath, options = {}) {
   log.progress("Starting web server...", options);
 
   const stdio = options.verbose ? "inherit" : "ignore";
-  const serverHostField = options.serverHostField ?? defaultHostField;
-  const serverPortField = options.serverPortField ?? defaultPortField;
 
   const abortController = new AbortController();
   const signal = options.signal
@@ -170,8 +159,8 @@ export async function startServer(absoluteServerFilePath, options = {}) {
     cwd: nodePath.dirname(absoluteServerFilePath),
     env: {
       ...process.env,
-      [serverHostField]: String(host),
-      [serverPortField]: String(port),
+      serverHost: String(host),
+      serverPort: String(port),
     },
     detached: true,
     stdio,
