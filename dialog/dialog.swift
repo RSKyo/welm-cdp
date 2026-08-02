@@ -15,10 +15,33 @@ func printUsageAndExit() -> Never {
     exitWithError("""
 usage:
   dialog folder [title]
-  dialog file [title]
-  dialog files [title]
+  dialog file [title] [includeExtsJson]
+  dialog files [title] [includeExtsJson]
   dialog save [title]
 """)
+}
+
+func parseIncludeExts(_ json: String?) -> [String]? {
+    guard let json = json else {
+        return nil
+    }
+
+    guard let data = json.data(using: .utf8),
+          let includeExts = try? JSONSerialization.jsonObject(with: data) as? [String] else {
+        exitWithError("invalid includeExts JSON")
+    }
+
+    return includeExts
+}
+
+func fileTypes(for includeExts: [String]) -> [String] {
+    return includeExts.map { includeExt in
+        if includeExt.hasPrefix(".") {
+            return String(includeExt.dropFirst())
+        }
+
+        return includeExt
+    }
 }
 
 func printPath(_ url: URL) {
@@ -43,7 +66,8 @@ func runOpenPanel(
     canChooseFiles: Bool,
     canChooseDirectories: Bool,
     allowsMultipleSelection: Bool,
-    title: String
+    title: String,
+    includeExts: [String]? = nil
 ) {
     let app = NSApplication.shared
     app.setActivationPolicy(.accessory)
@@ -55,6 +79,11 @@ func runOpenPanel(
     panel.canChooseDirectories = canChooseDirectories
     panel.allowsMultipleSelection = allowsMultipleSelection
     panel.canCreateDirectories = true
+
+    if let includeExts = includeExts {
+        panel.allowedFileTypes = fileTypes(for: includeExts)
+        panel.allowsOtherFileTypes = false
+    }
 
     panel.begin { response in
 
@@ -107,12 +136,13 @@ func runSavePanel(title: String) {
 let args = Array(CommandLine.arguments.dropFirst())
 
 guard args.count >= 1,
-      args.count <= 2 else {
+      args.count <= 3 else {
     printUsageAndExit()
 }
 
 let command = args[0]
-let customTitle = args.count == 2 ? args[1] : nil
+let customTitle = args.count >= 2 ? args[1] : nil
+let includeExts = args.count == 3 ? parseIncludeExts(args[2]) : nil
 
 switch command {
 
@@ -129,7 +159,8 @@ case "file":
         canChooseFiles: true,
         canChooseDirectories: false,
         allowsMultipleSelection: false,
-        title: customTitle ?? "Choose File"
+        title: customTitle ?? "Choose File",
+        includeExts: includeExts
     )
 
 case "files":
@@ -137,7 +168,8 @@ case "files":
         canChooseFiles: true,
         canChooseDirectories: false,
         allowsMultipleSelection: true,
-        title: customTitle ?? "Choose Files"
+        title: customTitle ?? "Choose Files",
+        includeExts: includeExts
     )
 
 case "save":

@@ -31,8 +31,8 @@
 // - Unexpected native and PowerShell errors are wrapped with
 //   the corresponding public method name.
 //
-// Version: 0.1.0
-// Last modified: 2026-07-15
+// Version: 0.2.0
+// Last modified: 2026-08-02
 // -----------------------------------------------------------------------------
 
 import fs from "node:fs";
@@ -114,6 +114,11 @@ export async function selectFolder(options = {}) {
  * @param {string} [options.dialogTitle="Choose File"]
  * Native dialog title.
  *
+ * @param {string[]} [options.includeExts]
+ * Include only files with these extensions.
+ * Extensions can be written with or without a leading dot.
+ * Example: [".mp3", "flac"]
+ *
  * @returns {Promise<string | null>}
  * Selected file path, or null if cancelled.
  *
@@ -123,13 +128,14 @@ export async function selectFolder(options = {}) {
  */
 export async function selectFile(options = {}) {
   const title = options.dialogTitle ?? "Choose File";
+  const includeExts = normalizeIncludeExts(options.includeExts);
 
   if (process.platform === "darwin") {
-    return await selectFileDarwin(title);
+    return await selectFileDarwin(title, includeExts);
   }
 
   if (process.platform === "win32") {
-    return await selectFileWin32(title);
+    return await selectFileWin32(title, includeExts);
   }
 
   throw new Error(`Unsupported platform: ${process.platform}`);
@@ -158,6 +164,11 @@ export async function selectFile(options = {}) {
  * @param {string} [options.dialogTitle="Choose Files"]
  * Native dialog title.
  *
+ * @param {string[]} [options.includeExts]
+ * Include only files with these extensions.
+ * Extensions can be written with or without a leading dot.
+ * Example: [".mp3", "flac"]
+ *
  * @returns {Promise<string[] | null>}
  * Selected file paths, or null if cancelled.
  *
@@ -168,13 +179,14 @@ export async function selectFile(options = {}) {
  */
 export async function selectFiles(options = {}) {
   const title = options.dialogTitle ?? "Choose Files";
+  const includeExts = normalizeIncludeExts(options.includeExts);
 
   if (process.platform === "darwin") {
-    return await selectFilesDarwin(title);
+    return await selectFilesDarwin(title, includeExts);
   }
 
   if (process.platform === "win32") {
-    return await selectFilesWin32(title);
+    return await selectFilesWin32(title, includeExts);
   }
 
   throw new Error(`Unsupported platform: ${process.platform}`);
@@ -259,9 +271,15 @@ async function selectFolderDarwin(title) {
   }
 }
 
-async function selectFileDarwin(title) {
+async function selectFileDarwin(title, includeExts) {
   try {
-    const { stdout } = await runProgram(dialogBin, "file", title);
+    const args = ["file", title];
+
+    if (includeExts !== null) {
+      args.push(JSON.stringify(includeExts));
+    }
+
+    const { stdout } = await runProgram(dialogBin, ...args);
 
     return stdout;
   } catch (error) {
@@ -276,9 +294,15 @@ async function selectFileDarwin(title) {
   }
 }
 
-async function selectFilesDarwin(title) {
+async function selectFilesDarwin(title, includeExts) {
   try {
-    const { stdout } = await runProgram(dialogBin, "files", title);
+    const args = ["files", title];
+
+    if (includeExts !== null) {
+      args.push(JSON.stringify(includeExts));
+    }
+
+    const { stdout } = await runProgram(dialogBin, ...args);
 
     return JSON.parse(stdout);
   } catch (error) {
@@ -343,13 +367,17 @@ if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
   }
 }
 
-async function selectFileWin32(title) {
+async function selectFileWin32(title, includeExts) {
   const script = `
 Add-Type -AssemblyName System.Windows.Forms
 
 $dialog = New-Object System.Windows.Forms.OpenFileDialog
 $dialog.Title = $args[0]
 $dialog.Multiselect = $false
+
+if ($args[1]) {
+  $dialog.Filter = $args[1]
+}
 
 if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
   Write-Output $dialog.FileName
@@ -359,7 +387,11 @@ if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
 `;
 
   try {
-    const { stdout } = await runPowerShell(script, title);
+    const { stdout } = await runPowerShell(
+      script,
+      title,
+      createFileFilter(includeExts),
+    );
     return stdout.trim();
   } catch (error) {
     if (error.code === 2 || error.code === "2") {
@@ -373,13 +405,17 @@ if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
   }
 }
 
-async function selectFilesWin32(title) {
+async function selectFilesWin32(title, includeExts) {
   const script = `
 Add-Type -AssemblyName System.Windows.Forms
 
 $dialog = New-Object System.Windows.Forms.OpenFileDialog
 $dialog.Title = $args[0]
 $dialog.Multiselect = $true
+
+if ($args[1]) {
+  $dialog.Filter = $args[1]
+}
 
 if ($dialog.ShowDialog() -ne [System.Windows.Forms.DialogResult]::OK) {
   exit 2
@@ -389,7 +425,11 @@ ConvertTo-Json -InputObject @($dialog.FileNames) -Compress
 `;
 
   try {
-    const { stdout } = await runPowerShell(script, title);
+    const { stdout } = await runPowerShell(
+      script,
+      title,
+      createFileFilter(includeExts),
+    );
     return JSON.parse(stdout);
   } catch (error) {
     if (error.code === 2 || error.code === "2") {
@@ -430,4 +470,40 @@ if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
 
     throw new Error(`selectSavePath failed: ${message}`);
   }
+}
+
+function normalizeIncludeExts(includeExts) {
+  if (includeExts == null) {
+    return null;
+  }
+
+  if (!Array.isArray(includeExts) || includeExts.length === 0) {
+    throw new Error("includeExts must be a non-empty array");
+  }
+
+  const normalizedExts = includeExts.map((includeExt) => {
+    if (typeof includeExt !== "string") {
+      throw new Error("includeExts must contain only strings");
+    }
+
+    const ext = includeExt.trim().toLowerCase();
+
+    if (!ext || ext === ".") {
+      throw new Error("includeExts must not contain empty extensions");
+    }
+
+    return ext.startsWith(".") ? ext : `.${ext}`;
+  });
+
+  return [...new Set(normalizedExts)];
+}
+
+function createFileFilter(includeExts) {
+  if (includeExts === null) {
+    return "All Files (*.*)|*.*";
+  }
+
+  const patterns = includeExts.map((ext) => `*${ext}`);
+
+  return `Supported Files (${patterns.join(", ")})|${patterns.join(";")}`;
 }

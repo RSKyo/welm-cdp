@@ -155,14 +155,13 @@ export function copyFileTo(filePath, toFilePath, options = {}) {
   // COPYFILE_EXCL: throw EEXIST if the target file already exists.
   const mode = overwrite ? 0 : fs.constants.COPYFILE_EXCL;
 
-  try {
-    fs.copyFileSync(filePath, toFilePath, mode);
-  } catch (error) {
-    if (error?.code === "EEXIST") {
-      return toFilePath;
+  if (overwrite) {
+    fs.copyFileSync(filePath, toFilePath, 0);
+  } else {
+    if (fs.existsSync(toFilePath)) {
+      throw new Error(`target file already exists: ${toFilePath}`);
     }
-
-    throw error;
+    fs.copyFileSync(filePath, toFilePath, 0);
   }
 
   return toFilePath;
@@ -525,7 +524,11 @@ function assertBuffer(value, fieldName = "value") {
 }
 
 function assertNonBlankString(value, fieldName = "value") {
-  if (typeof value !== "string" || value.length === 0 || value.trim().length === 0) {
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    value.trim().length === 0
+  ) {
     throw new Error(`${fieldName} must be a non-blank string`);
   }
 
