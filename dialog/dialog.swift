@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import UniformTypeIdentifiers
 
 func writeStderr(_ message: String) {
     let data = Data((message + "\n").utf8)
@@ -34,13 +35,19 @@ func parseIncludeExts(_ json: String?) -> [String]? {
     return includeExts
 }
 
-func fileTypes(for includeExts: [String]) -> [String] {
-    return includeExts.map { includeExt in
-        if includeExt.hasPrefix(".") {
-            return String(includeExt.dropFirst())
-        }
+func contentTypes(for includeExts: [String]) -> [UTType] {
+    includeExts.compactMap { ext in
+        let filenameExtension = ext.hasPrefix(".")
+            ? String(ext.dropFirst())
+            : ext
 
-        return includeExt
+        return UTType(filenameExtension: filenameExtension)
+    }
+}
+
+func fileTypes(for includeExts: [String]) -> [String] {
+    includeExts.map { ext in
+        ext.hasPrefix(".") ? String(ext.dropFirst()) : ext
     }
 }
 
@@ -81,7 +88,11 @@ func runOpenPanel(
     panel.canCreateDirectories = true
 
     if let includeExts = includeExts {
-        panel.allowedFileTypes = fileTypes(for: includeExts)
+        if #available(macOS 11.0, *) {
+            panel.allowedContentTypes = contentTypes(for: includeExts)
+        } else {
+            panel.allowedFileTypes = fileTypes(for: includeExts)
+        }
         panel.allowsOtherFileTypes = false
     }
 

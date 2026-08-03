@@ -52,13 +52,17 @@ const dialogBin = process.platform === "darwin" ? assertDialogBin() : null;
 // -----------------------------------------------------------------------------
 
 /**
- * Open a native folder selection dialog.
+ * Open a native file system dialog.
  *
- * Returns the selected directory path.
+ * The dialog type is determined by options.mode.
+ *
+ * Returns a selected path for "folder", "file", and "save" modes.
+ * Returns selected file paths for "files" mode.
  * Returns null if the user cancels the dialog.
  *
  * @example
- * const folderPath = await selectFolder({
+ * const folderPath = await dialog({
+ *   mode: "folder",
  *   dialogTitle: "Choose Audio Root",
  * });
  *
@@ -69,17 +73,52 @@ const dialogBin = process.platform === "darwin" ? assertDialogBin() : null;
  * @param {Object} [options]
  * Dialog options.
  *
- * @param {string} [options.dialogTitle="Choose Folder"]
+ * @param {"folder" | "file" | "files" | "save"} options.mode
+ * Dialog mode.
+ *
+ * - "folder": Select one directory.
+ * - "file": Select one file.
+ * - "files": Select multiple files.
+ * - "save": Choose a destination file path.
+ *
+ * @param {string} [options.dialogTitle]
  * Native dialog title or description.
  *
- * @returns {Promise<string | null>}
- * Selected directory path, or null if cancelled.
+ * @returns {Promise<string | string[] | null>}
+ * A selected path, selected file paths, or null if cancelled.
  *
  * @throws {Error}
- * Throws if the current platform is unsupported
+ * Throws if options.mode is unknown, the current platform is unsupported,
  * or the native dialog operation fails.
  */
-export async function selectFolder(options = {}) {
+export async function dialog(options = {}) {
+  const { mode } = options;
+
+  switch (mode) {
+    case "folder":
+      return selectFolder(options);
+
+    case "file":
+      return selectFile(options);
+
+    case "files":
+      return selectFiles(options);
+
+    case "save":
+      return selectSavePath(options);
+
+    default:
+      throw new Error(
+        `unknown dialog mode: ${mode}, expected one of: folder, file, files, save`,
+      );
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Private helpers for both macOS and Windows
+// -----------------------------------------------------------------------------
+
+async function selectFolder(options = {}) {
   const title = options.dialogTitle ?? "Choose Folder";
 
   if (process.platform === "darwin") {
@@ -93,40 +132,7 @@ export async function selectFolder(options = {}) {
   throw new Error(`Unsupported platform: ${process.platform}`);
 }
 
-/**
- * Open a native single-file selection dialog.
- *
- * Returns the selected file path.
- * Returns null if the user cancels the dialog.
- *
- * @example
- * const filePath = await selectFile({
- *   dialogTitle: "Choose Config File",
- * });
- *
- * if (filePath !== null) {
- *   console.log(filePath);
- * }
- *
- * @param {Object} [options]
- * Dialog options.
- *
- * @param {string} [options.dialogTitle="Choose File"]
- * Native dialog title.
- *
- * @param {string[]} [options.includeExts]
- * Include only files with these extensions.
- * Extensions can be written with or without a leading dot.
- * Example: [".mp3", "flac"]
- *
- * @returns {Promise<string | null>}
- * Selected file path, or null if cancelled.
- *
- * @throws {Error}
- * Throws if the current platform is unsupported
- * or the native dialog operation fails.
- */
-export async function selectFile(options = {}) {
+async function selectFile(options = {}) {
   const title = options.dialogTitle ?? "Choose File";
   const includeExts = normalizeIncludeExts(options.includeExts);
 
@@ -141,43 +147,7 @@ export async function selectFile(options = {}) {
   throw new Error(`Unsupported platform: ${process.platform}`);
 }
 
-/**
- * Open a native multiple-file selection dialog.
- *
- * Returns an array containing the selected file paths.
- * Returns null if the user cancels the dialog.
- *
- * @example
- * const filePaths = await selectFiles({
- *   dialogTitle: "Choose Media Files",
- * });
- *
- * if (filePaths !== null) {
- *   for (const filePath of filePaths) {
- *     console.log(filePath);
- *   }
- * }
- *
- * @param {Object} [options]
- * Dialog options.
- *
- * @param {string} [options.dialogTitle="Choose Files"]
- * Native dialog title.
- *
- * @param {string[]} [options.includeExts]
- * Include only files with these extensions.
- * Extensions can be written with or without a leading dot.
- * Example: [".mp3", "flac"]
- *
- * @returns {Promise<string[] | null>}
- * Selected file paths, or null if cancelled.
- *
- * @throws {Error}
- * Throws if the current platform is unsupported,
- * the native dialog operation fails, or its output
- * cannot be parsed.
- */
-export async function selectFiles(options = {}) {
+async function selectFiles(options = {}) {
   const title = options.dialogTitle ?? "Choose Files";
   const includeExts = normalizeIncludeExts(options.includeExts);
 
@@ -192,38 +162,7 @@ export async function selectFiles(options = {}) {
   throw new Error(`Unsupported platform: ${process.platform}`);
 }
 
-/**
- * Open a native save-file dialog.
- *
- * Returns the destination path selected by the user.
- * This method only selects a path; it does not create
- * or write the file.
- *
- * Returns null if the user cancels the dialog.
- *
- * @example
- * const filePath = await selectSavePath({
- *   dialogTitle: "Save Screenshot",
- * });
- *
- * if (filePath !== null) {
- *   await fs.writeFile(filePath, imageBuffer);
- * }
- *
- * @param {Object} [options]
- * Dialog options.
- *
- * @param {string} [options.dialogTitle="Save File"]
- * Native dialog title.
- *
- * @returns {Promise<string | null>}
- * Selected destination file path, or null if cancelled.
- *
- * @throws {Error}
- * Throws if the current platform is unsupported
- * or the native dialog operation fails.
- */
-export async function selectSavePath(options = {}) {
+async function selectSavePath(options = {}) {
   const title = options.dialogTitle ?? "Save File";
 
   if (process.platform === "darwin") {
@@ -240,18 +179,6 @@ export async function selectSavePath(options = {}) {
 // -----------------------------------------------------------------------------
 // Private helpers for macOS
 // -----------------------------------------------------------------------------
-
-function assertDialogBin() {
-  const dialogBin = nodePath.join(__dirname, "dialog.bin");
-
-  if (!fs.existsSync(dialogBin)) {
-    throw new Error(
-      `dialog binary not found: ${dialogBin}. Run: npm run build:macos:dialog`,
-    );
-  }
-
-  return dialogBin;
-}
 
 async function selectFolderDarwin(title) {
   try {
@@ -470,6 +397,22 @@ if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
 
     throw new Error(`selectSavePath failed: ${message}`);
   }
+}
+
+// -----------------------------------------------------------------------------
+// Private helpers
+// -----------------------------------------------------------------------------
+
+function assertDialogBin() {
+  const dialogBin = nodePath.join(__dirname, "dialog.bin");
+
+  if (!fs.existsSync(dialogBin)) {
+    throw new Error(
+      `dialog binary not found: ${dialogBin}. Run: npm run build:macos:dialog`,
+    );
+  }
+
+  return dialogBin;
 }
 
 function normalizeIncludeExts(includeExts) {
