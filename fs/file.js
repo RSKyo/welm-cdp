@@ -44,10 +44,6 @@ import nodePath from "node:path";
 // Public API: File Operations
 // -----------------------------------------------------------------------------
 
-export function fileExists(filePath) {
-  return fs.existsSync(filePath);
-}
-
 /**
  * Move a file to a new location.
  *

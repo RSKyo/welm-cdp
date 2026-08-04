@@ -45,12 +45,6 @@ func contentTypes(for includeExts: [String]) -> [UTType] {
     }
 }
 
-func fileTypes(for includeExts: [String]) -> [String] {
-    includeExts.map { ext in
-        ext.hasPrefix(".") ? String(ext.dropFirst()) : ext
-    }
-}
-
 func printPath(_ url: URL) {
     FileHandle.standardOutput.write(Data(url.path.utf8))
 }
@@ -88,11 +82,7 @@ func runOpenPanel(
     panel.canCreateDirectories = true
 
     if let includeExts = includeExts {
-        if #available(macOS 11.0, *) {
-            panel.allowedContentTypes = contentTypes(for: includeExts)
-        } else {
-            panel.allowedFileTypes = fileTypes(for: includeExts)
-        }
+        panel.allowedContentTypes = contentTypes(for: includeExts)
         panel.allowsOtherFileTypes = false
     }
 
