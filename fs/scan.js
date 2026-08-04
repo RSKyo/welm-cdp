@@ -1,32 +1,19 @@
-// -----------------------------------------------------------------------------
-// fs/scan
-// -----------------------------------------------------------------------------
-// Local recursive file and directory scanning utilities.
-//
-// Public API:
-// - scanFiles(input, options)
-// - scanDirs(dirPath, options)
-//
-// Features:
-// - Recursive file and directory traversal.
-// - File filtering by extension and name keywords.
-// - Directory filtering by name keywords.
-// - Optional hidden file and directory inclusion.
-//
-// Design:
-// - All methods are synchronous.
-// - scanFiles accepts either a file path or a directory path.
-// - scanFiles returns file entries only, not directory entries.
-// - scanDirs accepts a directory path only.
-// - scanDirs returns subdirectory entries only, not the root directory.
-// - Hidden files and directories are skipped by default.
-// - Extension filters only apply to files.
-// - Keyword filters apply to returned entries, not traversal.
-// - Non-matching parent directories are still traversed.
-//
-// Version: 0.2.0
-// Last modified: 2026-07-16
-// -----------------------------------------------------------------------------
+/**
+ * File and directory scanning utilities.
+ *
+ * Provides recursive file and directory scanning with optional hidden-item,
+ * file-name, extension, and directory-name filters.
+ *
+ * Directory filters apply only when scanning from a directory:
+ *
+ * - `includeDirs` includes matching directories and all of their descendants.
+ * - `excludeDirs` skips matching directories and their entire subtrees.
+ * - A single-file input to `scanFiles()` uses file filters only.
+ * - The root directory passed to `scanDirs()` is not matched or returned.
+ * 
+ * Version: 0.3.0
+ * Last modified: 2026-08-05
+ */
 
 import fs from "node:fs";
 import nodePath from "node:path";
@@ -38,10 +25,17 @@ import nodePath from "node:path";
 /**
  * Recursively scan files from a file or directory path.
  *
+ * When `input` is a file, only file filters are applied. Directory filters do
+ * not apply to a single-file input.
+ *
+ * When `input` is a directory, `includeDirs` limits results to matching
+ * directories and their descendants. `excludeDirs` skips matching directories
+ * and their entire subtrees.
+ *
  * @example
  * const files = scanFiles("/music", {
  *   includeExts: [".mp3", ".flac"],
- *   excludeKeywords: ["demo"],
+ *   excludeDirs: ["temp"],
  * });
  *
  * @param {string} input
@@ -50,25 +44,28 @@ import nodePath from "node:path";
  * @param {Object} [options]
  * Scan options.
  *
- * @param {string[]} [options.includeExts]
- * Include only files with specified extensions.
- * Extensions can be written with or without a leading dot.
- * Example: [".mp3", "flac"]
- *
- * @param {string[]} [options.excludeExts]
- * Exclude files with specified extensions.
- * Example: [".jpg", ".png"]
- *
- * @param {string[]} [options.includeKeywords]
- * Include files whose name contains any keyword.
- * Example: ["live", "concert"]
- *
- * @param {string[]} [options.excludeKeywords]
- * Exclude files whose name contains any keyword.
- * Example: ["demo", "test"]
- *
  * @param {boolean} [options.includeHidden=false]
- * Include hidden files and directories.
+ * Whether to include hidden files and directories.
+ *
+ * @param {string|string[]} [options.includeExts]
+ * Include only files with the specified extensions.
+ * Extensions can be written with or without a leading dot.
+ *
+ * @param {string|string[]} [options.excludeExts]
+ * Exclude files with the specified extensions.
+ * Extensions can be written with or without a leading dot.
+ *
+ * @param {string|string[]} [options.includeFiles]
+ * Include only files whose names contain any keyword.
+ *
+ * @param {string|string[]} [options.excludeFiles]
+ * Exclude files whose names contain any keyword.
+ *
+ * @param {string|string[]} [options.includeDirs]
+ * Include files only from matching directories and their descendants.
+ *
+ * @param {string|string[]} [options.excludeDirs]
+ * Exclude matching directories and their descendants.
  *
  * @returns {{
  *   root: string,
@@ -82,7 +79,7 @@ import nodePath from "node:path";
  * Array of file entries.
  *
  * Each entry contains:
- * 
+ *
  * - root: Root part of the path.
  * - dir: Directory path containing the file.
  * - base: File name with extension.
@@ -108,7 +105,7 @@ export function scanFiles(input, options = {}) {
   }
 
   if (stat.isFile()) {
-    if (!matchPath(input, scanOptions, { isFile: true })) {
+    if (!matchFile(input, scanOptions)) {
       return [];
     }
 
@@ -119,30 +116,34 @@ export function scanFiles(input, options = {}) {
 }
 
 /**
- * Recursively scan subdirectories from a directory path.
+ * Recursively scan child directories from a directory path.
+ *
+ * The input directory itself is not matched, filtered, or returned. Only its
+ * child directories are considered.
+ *
+ * `includeDirs` includes matching directories and their descendants.
+ * `excludeDirs` skips matching directories and their entire subtrees.
  *
  * @example
  * const dirs = scanDirs("/music", {
- *   includeKeywords: ["album"],
- *   excludeKeywords: ["temp"],
+ *   includeDirs: ["album"],
+ *   excludeDirs: ["temp"],
  * });
  *
- * @param {string} dirPath
+ * @param {string} input
  * Directory path to scan.
  *
  * @param {Object} [options]
  * Scan options.
  *
- * @param {string[]} [options.includeKeywords]
- * Include directories whose name contains any keyword.
- * Example: ["album", "artist"]
- *
- * @param {string[]} [options.excludeKeywords]
- * Exclude directories whose name contains any keyword.
- * Example: ["temp", "cache"]
- *
  * @param {boolean} [options.includeHidden=false]
- * Include hidden directories.
+ * Whether to include hidden directories.
+ *
+ * @param {string|string[]} [options.includeDirs]
+ * Include only matching directories and their descendants.
+ *
+ * @param {string|string[]} [options.excludeDirs]
+ * Exclude matching directories and their descendants.
  *
  * @returns {{
  *   root: string,
@@ -188,8 +189,34 @@ export function scanDirs(dirPath, options = {}) {
 // Private helpers
 // -----------------------------------------------------------------------------
 
-function walkFiles(dirPath, options = {}) {
+function isHiddenPath(filePath) {
+  return isHiddenName(nodePath.basename(filePath));
+}
+
+function isHiddenName(name) {
+  return name.startsWith(".");
+}
+
+function walkFiles(dirPath, options = {}, isInIncludedDir = false) {
   if (!dirPath || !fs.existsSync(dirPath)) {
+    return [];
+  }
+
+  const dirName = nodePath.basename(dirPath).toLowerCase();
+
+  const isCurrentDirIncluded =
+    isInIncludedDir ||
+    !options.includeDirs ||
+    options.includeDirs.length === 0 ||
+    options.includeDirs.some((keyword) => dirName.includes(keyword));
+
+  const isCurrentDirExcluded =
+    options.excludeDirs &&
+    options.excludeDirs.length > 0 &&
+    options.excludeDirs.some((keyword) => dirName.includes(keyword));
+
+  // 排除目录及其整个子树。
+  if (isCurrentDirExcluded) {
     return [];
   }
 
@@ -204,25 +231,19 @@ function walkFiles(dirPath, options = {}) {
     const fullPath = nodePath.join(dirPath, item.name);
 
     if (item.isDirectory()) {
-      result.push(...walkFiles(fullPath, options));
+      result.push(...walkFiles(fullPath, options, isCurrentDirIncluded));
       continue;
     }
 
-    if (!item.isFile()) {
-      continue;
+    if (isCurrentDirIncluded && item.isFile() && matchFile(fullPath, options)) {
+      result.push(createFileEntry(fullPath));
     }
-
-    if (!matchPath(fullPath, options, { isFile: true })) {
-      continue;
-    }
-
-    result.push(createFileEntry(fullPath));
   }
 
   return result;
 }
 
-function walkDirs(dirPath, options = {}) {
+function walkDirs(dirPath, options = {}, isInIncludedDir = false) {
   if (!dirPath || !fs.existsSync(dirPath)) {
     return [];
   }
@@ -241,11 +262,32 @@ function walkDirs(dirPath, options = {}) {
 
     const fullPath = nodePath.join(dirPath, item.name);
 
-    if (matchPath(fullPath, options, { isFile: false })) {
+    const isCurrentDirIncluded =
+      isInIncludedDir ||
+      !options.includeDirs ||
+      options.includeDirs.length === 0 ||
+      options.includeDirs.some((keyword) =>
+        item.name.toLowerCase().includes(keyword),
+      );
+
+    const isCurrentDirExcluded =
+      options.excludeDirs &&
+      options.excludeDirs.length > 0 &&
+      options.excludeDirs.some((keyword) =>
+        item.name.toLowerCase().includes(keyword),
+      );
+
+    // 排除目录及其整个子树。
+    if (isCurrentDirExcluded) {
+      continue;
+    }
+
+    // 包含目录及其子目录。
+    if (isCurrentDirIncluded) {
       result.push(createDirEntry(fullPath));
     }
 
-    result.push(...walkDirs(fullPath, options));
+    result.push(...walkDirs(fullPath, options, isCurrentDirIncluded));
   }
 
   return result;
@@ -255,89 +297,69 @@ function normalizeScanOptions(options = {}) {
   return {
     ...options,
     includeHidden: options.includeHidden === true,
-    includeExts: normalizeExts(options.includeExts),
-    excludeExts: normalizeExts(options.excludeExts),
-    includeKeywords: normalizeKeywords(options.includeKeywords),
-    excludeKeywords: normalizeKeywords(options.excludeKeywords),
+    includeExts: normalizeValues(options.includeExts, "."),
+    excludeExts: normalizeValues(options.excludeExts, "."),
+    includeDirs: normalizeValues(options.includeDirs),
+    excludeDirs: normalizeValues(options.excludeDirs),
+    includeFiles: normalizeValues(options.includeFiles),
+    excludeFiles: normalizeValues(options.excludeFiles),
   };
 }
 
-function normalizeExts(exts) {
-  if (exts == null) {
-    return null;
+function normalizeValues(values, prefix = "") {
+  if (values == null) {
+    return [];
   }
 
-  const normalizedExts = Array.isArray(exts) ? exts : [exts];
-
-  const result = normalizedExts.map((ext) => {
-    if (typeof ext !== "string" || ext.trim() === "") {
-      throw new Error("extension must be a non-empty string");
-    }
-
-    ext = ext.trim().toLowerCase();
-
-    return ext.startsWith(".") ? ext : `.${ext}`;
-  });
-
-  return result.length === 0 ? null : result;
-}
-
-function normalizeKeywords(keywords) {
-  if (keywords == null) {
-    return null;
+  if (typeof values !== "string" && !Array.isArray(values)) {
+    throw new Error("values must be a string or an array of strings");
   }
 
-  const normalizedKeywords = Array.isArray(keywords) ? keywords : [keywords];
+  const rawValues = Array.isArray(values) ? values : [values];
 
-  const result = normalizedKeywords.map((keyword) => {
-    if (typeof keyword !== "string" || keyword.trim() === "") {
-      throw new Error("keyword must be a non-empty string");
-    }
+  return [
+    ...new Set(
+      rawValues.map((value) => {
+        if (typeof value !== "string" || value.trim() === "") {
+          throw new Error("value must be a non-empty string");
+        }
 
-    return keyword.trim().toLowerCase();
-  });
-
-  return result.length === 0 ? null : result;
+        value = value.trim().toLowerCase();
+        value = value.startsWith(prefix) ? value : `${prefix}${value}`;
+        return value;
+      }),
+    ),
+  ];
 }
 
-function isHiddenPath(filePath) {
-  return isHiddenName(nodePath.basename(filePath));
-}
-
-function isHiddenName(name) {
-  return name.startsWith(".");
-}
-
-function matchPath(targetPath, options = {}, entry = {}) {
+function matchFile(targetPath, options = {}) {
   const base = nodePath.basename(targetPath).toLowerCase();
-  const isFile = entry.isFile === true;
+  const stat = fs.statSync(targetPath);
 
-  if (
-    options.includeKeywords &&
-    !options.includeKeywords.some((keyword) => base.includes(keyword))
-  ) {
-    return false;
-  }
+  if (stat.isFile()) {
+    if (
+      options.includeFiles.length > 0 &&
+      !options.includeFiles.some((keyword) => base.includes(keyword))
+    ) {
+      return false;
+    }
 
-  if (
-    options.excludeKeywords &&
-    options.excludeKeywords.some((keyword) => base.includes(keyword))
-  ) {
-    return false;
-  }
+    if (
+      options.excludeFiles.length > 0 &&
+      options.excludeFiles.some((keyword) => base.includes(keyword))
+    ) {
+      return false;
+    }
 
-  if (!isFile) {
-    return true;
-  }
+    const ext = nodePath.extname(targetPath).toLowerCase();
 
-  const ext = nodePath.extname(targetPath).toLowerCase();
+    if (options.includeExts.length > 0 && !options.includeExts.includes(ext)) {
+      return false;
+    }
 
-  if (options.includeExts && !options.includeExts.includes(ext)) {
-    return false;
-  }
-
-  if (options.excludeExts && options.excludeExts.includes(ext)) {
-    return false;
+    if (options.excludeExts.length > 0 && options.excludeExts.includes(ext)) {
+      return false;
+    }
   }
 
   return true;

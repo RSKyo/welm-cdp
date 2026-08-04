@@ -171,16 +171,25 @@ export function copyFileTo(filePath, toFilePath, options = {}) {
  *
  * @param {string} filePath
  * File path to remove.
+ * 
+ * @param {Object} [options]
+ * @param {boolean} [options.missingOk=true]
+ * Whether to ignore the error if the file does not exist.
  *
  * @returns {boolean}
  * Returns true after successful removal.
  */
-export function removeFile(filePath) {
-  assertExistingFile(filePath, "filePath");
+export function removeFile(filePath, { missingOk = true } = {}) {
+  try {
+    fs.rmSync(filePath);
+    return true;
+  } catch (error) {
+    if (missingOk && error?.code === 'ENOENT') {
+      return false;
+    }
 
-  fs.rmSync(filePath);
-
-  return true;
+    throw error;
+  }
 }
 
 /**
