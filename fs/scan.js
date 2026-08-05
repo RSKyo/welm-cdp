@@ -8,8 +8,8 @@
  *
  * - `includeDirs` includes matching directories and all of their descendants.
  * - `excludeDirs` skips matching directories and their entire subtrees.
- * - A single-file input to `scanFiles()` uses file filters only.
- * - The root directory passed to `scanDirs()` is not matched or returned.
+ * - A single-file input to `scanFilesSync()` uses file filters only.
+ * - The root directory passed to `scanDirsSync()` is not matched or returned.
  * 
  * Version: 0.3.0
  * Last modified: 2026-08-05
@@ -33,7 +33,7 @@ import nodePath from "node:path";
  * and their entire subtrees.
  *
  * @example
- * const files = scanFiles("/music", {
+ * const files = scanFilesSync("/music", {
  *   includeExts: [".mp3", ".flac"],
  *   excludeDirs: ["temp"],
  * });
@@ -87,7 +87,7 @@ import nodePath from "node:path";
  * - name: File name without extension.
  * - filePath: Full file path.
  */
-export function scanFiles(input, options = {}) {
+export function scanFilesSync(input, options = {}) {
   if (!input || !fs.existsSync(input)) {
     return [];
   }
@@ -125,12 +125,12 @@ export function scanFiles(input, options = {}) {
  * `excludeDirs` skips matching directories and their entire subtrees.
  *
  * @example
- * const dirs = scanDirs("/music", {
+ * const dirs = scanDirsSync("/music", {
  *   includeDirs: ["album"],
  *   excludeDirs: ["temp"],
  * });
  *
- * @param {string} input
+ * @param {string} dirPath
  * Directory path to scan.
  *
  * @param {Object} [options]
@@ -165,7 +165,7 @@ export function scanFiles(input, options = {}) {
  * - name: Directory name without extension.
  * - dirPath: Full directory path.
  */
-export function scanDirs(dirPath, options = {}) {
+export function scanDirsSync(dirPath, options = {}) {
   if (!dirPath || !fs.existsSync(dirPath)) {
     return [];
   }

@@ -4,19 +4,19 @@
 // Local file read/write utilities.
 //
 // Public API:
-// - moveFileTo(filePath, toFilePath, options)
-// - copyFileTo(filePath, toFilePath, options)
-// - removeFile(filePath)
-// - renameFile(filePath, name)
+// - moveFileToSync(filePath, toFilePath, options)
+// - copyFileToSync(filePath, toFilePath, options)
+// - removeFileSync(filePath)
+// - renameFileSync(filePath, name)
 //
-// - readFileText(filePath, options)
-// - writeFileText(filePath, text, options)
-// - readFileJson(filePath, options)
-// - writeFileJson(filePath, value, options)
-// - readFileBuffer(filePath)
-// - writeFileBuffer(filePath, buffer, options)
-// - readFileBase64(filePath)
-// - writeFileBase64(filePath, base64, options)
+// - readFileTextSync(filePath, options)
+// - writeFileTextSync(filePath, text, options)
+// - readFileJsonSync(filePath, options)
+// - writeFileJsonSync(filePath, value, options)
+// - readFileBufferSync(filePath)
+// - writeFileBufferSync(filePath, buffer, options)
+// - readFileBase64Sync(filePath)
+// - writeFileBase64Sync(filePath, base64, options)
 //
 // Features:
 // - File move, copy, remove, and rename operations.
@@ -48,7 +48,7 @@ import nodePath from "node:path";
  * Move a file to a new location.
  *
  * @example
- * const newPath = moveFileTo(
+ * const newPath = moveFileToSync(
  *   "/tmp/a.txt",
  *   "/backup/a.txt"
  * );
@@ -69,7 +69,7 @@ import nodePath from "node:path";
  * @returns {string}
  * Target file path.
  */
-export function moveFileTo(filePath, toFilePath, options = {}) {
+export function moveFileToSync(filePath, toFilePath, options = {}) {
   assertExistingFile(filePath, "filePath");
   assertFileIfExists(toFilePath, "toFilePath");
 
@@ -110,7 +110,7 @@ export function moveFileTo(filePath, toFilePath, options = {}) {
  * Copy a file to a new location.
  *
  * @example
- * const copiedPath = copyFileTo(
+ * const copiedPath = copyFileToSync(
  *   "/tmp/a.txt",
  *   "/backup/a.txt",
  *   {
@@ -134,7 +134,7 @@ export function moveFileTo(filePath, toFilePath, options = {}) {
  * @returns {string}
  * Target file path.
  */
-export function copyFileTo(filePath, toFilePath, options = {}) {
+export function copyFileToSync(filePath, toFilePath, options = {}) {
   assertExistingFile(filePath, "filePath");
   assertFileIfExists(toFilePath, "toFilePath");
 
@@ -147,17 +147,15 @@ export function copyFileTo(filePath, toFilePath, options = {}) {
   const toDirPath = nodePath.dirname(toFilePath);
   ensureDir(toDirPath);
 
-  // mode 0: overwrite the existing target file.
-  // COPYFILE_EXCL: throw EEXIST if the target file already exists.
-  const mode = overwrite ? 0 : fs.constants.COPYFILE_EXCL;
-
   if (overwrite) {
+    // 0: overwrite the existing target file.
+    // COPYFILE_EXCL: throw EEXIST if the target file already exists.
     fs.copyFileSync(filePath, toFilePath, 0);
   } else {
     if (fs.existsSync(toFilePath)) {
       throw new Error(`target file already exists: ${toFilePath}`);
     }
-    fs.copyFileSync(filePath, toFilePath, 0);
+    fs.copyFileSync(filePath, toFilePath);
   }
 
   return toFilePath;
@@ -167,11 +165,11 @@ export function copyFileTo(filePath, toFilePath, options = {}) {
  * Remove a file.
  *
  * @example
- * removeFile("/tmp/a.txt");
+ * removeFileSync("/tmp/a.txt");
  *
  * @param {string} filePath
  * File path to remove.
- * 
+ *
  * @param {Object} [options]
  * @param {boolean} [options.missingOk=true]
  * Whether to ignore the error if the file does not exist.
@@ -179,12 +177,12 @@ export function copyFileTo(filePath, toFilePath, options = {}) {
  * @returns {boolean}
  * Returns true after successful removal.
  */
-export function removeFile(filePath, { missingOk = true } = {}) {
+export function removeFileSync(filePath, { missingOk = true } = {}) {
   try {
     fs.rmSync(filePath);
     return true;
   } catch (error) {
-    if (missingOk && error?.code === 'ENOENT') {
+    if (missingOk && error?.code === "ENOENT") {
       return false;
     }
 
@@ -196,7 +194,7 @@ export function removeFile(filePath, { missingOk = true } = {}) {
  * Rename a file in the same directory.
  *
  * @example
- * const newPath = renameFile(
+ * const newPath = renameFileSync(
  *   "/tmp/a.txt",
  *   "b.txt"
  * );
@@ -211,7 +209,7 @@ export function removeFile(filePath, { missingOk = true } = {}) {
  * @returns {string}
  * New file path.
  */
-export function renameFile(filePath, name) {
+export function renameFileSync(filePath, name) {
   assertExistingFile(filePath, "filePath");
   assertNonBlankString(name, "name");
 
@@ -251,7 +249,7 @@ export function renameFile(filePath, name) {
  * Read a text file.
  *
  * @example
- * const text = readFileText("/tmp/config.txt");
+ * const text = readFileTextSync("/tmp/config.txt");
  *
  * @param {string} filePath
  * Text file path.
@@ -265,19 +263,19 @@ export function renameFile(filePath, name) {
  * @returns {string}
  * File content as string.
  */
-export function readFileText(filePath, options = {}) {
+export function readFileTextSync(filePath, options = {}) {
   assertExistingFile(filePath, "filePath");
 
   const { encoding = "utf8" } = options;
 
-  return readFile(filePath).toString(encoding);
+  return fs.readFileSync(filePath).toString(encoding);
 }
 
 /**
  * Write text content to a file.
  *
  * @example
- * writeFileText(
+ * writeFileTextSync(
  *   "/tmp/config.txt",
  *   "hello",
  *   {
@@ -303,24 +301,24 @@ export function readFileText(filePath, options = {}) {
  * @returns {string}
  * Target file path.
  */
-export function writeFileText(filePath, text, options = {}) {
+export function writeFileTextSync(filePath, text, options = {}) {
   assertFileIfExists(filePath, "filePath");
+  assertString(text, "text");
 
-  // allow empty string, but not null or undefined
-  if (typeof text !== "string") {
-    throw new Error("text must be a string");
-  }
+  ensureDir(nodePath.dirname(filePath));
 
-  const { encoding = "utf8", overwrite = false } = options;
+  const { encoding = "utf8" } = options;
 
-  return writeFile(filePath, text, { encoding, overwrite });
+  fs.writeFileSync(filePath, text, { encoding });
+
+  return filePath;
 }
 
 /**
  * Read a JSON file.
  *
  * @example
- * const config = readFileJson("/tmp/config.json");
+ * const config = readFileJsonSync("/tmp/config.json");
  *
  * @param {string} filePath
  * JSON file path.
@@ -334,12 +332,12 @@ export function writeFileText(filePath, text, options = {}) {
  * @returns {Object}
  * Parsed JSON value.
  */
-export function readFileJson(filePath, options = {}) {
+export function readFileJsonSync(filePath, options = {}) {
   assertExistingFile(filePath, "filePath");
 
   const { encoding = "utf8" } = options;
 
-  const text = readFile(filePath).toString(encoding);
+  const text = fs.readFileSync(filePath).toString(encoding);
 
   return JSON.parse(stripBom(text));
 }
@@ -348,7 +346,7 @@ export function readFileJson(filePath, options = {}) {
  * Write a value as JSON file.
  *
  * @example
- * writeFileJson(
+ * writeFileJsonSync(
  *   "/tmp/config.json",
  *   {
  *     name: "test",
@@ -382,7 +380,7 @@ export function readFileJson(filePath, options = {}) {
  * @returns {string}
  * Target file path.
  */
-export function writeFileJson(filePath, value, options = {}) {
+export function writeFileJsonSync(filePath, value, options = {}) {
   assertFileIfExists(filePath, "filePath");
 
   const {
@@ -416,7 +414,7 @@ export function writeFileJson(filePath, value, options = {}) {
  * Read a file as Buffer.
  *
  * @example
- * const buffer = readFileBuffer("/tmp/image.bin");
+ * const buffer = readFileBufferSync("/tmp/image.bin");
  *
  * @param {string} filePath
  * File path.
@@ -424,17 +422,17 @@ export function writeFileJson(filePath, value, options = {}) {
  * @returns {Buffer}
  * File content buffer.
  */
-export function readFileBuffer(filePath) {
+export function readFileBufferSync(filePath) {
   assertExistingFile(filePath, "filePath");
 
-  return readFile(filePath);
+  return fs.readFileSync(filePath);
 }
 
 /**
  * Write Buffer data to a file.
  *
  * @example
- * writeFileBuffer(
+ * writeFileBufferSync(
  *   "/tmp/image.bin",
  *   buffer
  * );
@@ -454,7 +452,7 @@ export function readFileBuffer(filePath) {
  * @returns {string}
  * Target file path.
  */
-export function writeFileBuffer(filePath, buffer, options = {}) {
+export function writeFileBufferSync(filePath, buffer, options = {}) {
   assertFileIfExists(filePath, "filePath");
   assertBuffer(buffer, "buffer");
 
@@ -464,10 +462,10 @@ export function writeFileBuffer(filePath, buffer, options = {}) {
 }
 
 /**
- * Read a file and return Base64 encoded content.
+ * Read a file and return Base64 encoded content (synchronously).
  *
  * @example
- * const base64 = readFileBase64("/tmp/image.png");
+ * const base64 = readFileBase64Sync("/tmp/image.png");
  *
  * @param {string} filePath
  * File path.
@@ -475,17 +473,17 @@ export function writeFileBuffer(filePath, buffer, options = {}) {
  * @returns {string}
  * Base64 encoded content.
  */
-export function readFileBase64(filePath) {
+export function readFileBase64Sync(filePath) {
   assertExistingFile(filePath, "filePath");
 
-  return readFile(filePath).toString("base64");
+  return fs.readFileSync(filePath).toString("base64");
 }
 
 /**
  * Write Base64 encoded content to a file.
  *
  * @example
- * writeFileBase64(
+ * writeFileBase64Sync(
  *   "/tmp/image.png",
  *   base64
  * );
@@ -506,7 +504,9 @@ export function readFileBase64(filePath) {
  * @returns {string}
  * Target file path.
  */
-export function writeFileBase64(filePath, base64, options = {}) {
+export function writeFileBase64Sync(filePath, base64, options = {}) {
+  assertFileIfExists(filePath, "filePath");
+
   const clean = normalizeBase64(base64);
 
   const { overwrite = false } = options;
@@ -523,6 +523,14 @@ export function writeFileBase64(filePath, base64, options = {}) {
 function assertBuffer(value, fieldName = "value") {
   if (!Buffer.isBuffer(value) && !(value instanceof Uint8Array)) {
     throw new Error(`${fieldName} must be a Buffer or Uint8Array`);
+  }
+
+  return value;
+}
+
+export function assertString(value, fieldName = "value") {
+  if (typeof value !== "string") {
+    throw new Error(`${fieldName} must be a string`);
   }
 
   return value;
@@ -598,39 +606,6 @@ function ensureDir(dirPath) {
   }
 
   return dirPath;
-}
-
-function readFile(filePath) {
-  // default encoding is null to return a Buffer instead of a string
-  // toString() can be called later with the desired encoding
-  return fs.readFileSync(filePath);
-}
-
-function writeFile(filePath, data, options = {}) {
-  const dir = nodePath.dirname(filePath);
-  ensureDir(dir);
-
-  const encoding = options.encoding || null;
-  const overwrite = options.overwrite || false;
-
-  // Use flag "wx" to write the file only if it does not exist.
-  // Use flag "w" to overwrite the file if it exists.
-  const writeOptions = { flag: overwrite ? "w" : "wx" };
-  if (encoding) {
-    writeOptions.encoding = encoding;
-  }
-
-  try {
-    fs.writeFileSync(filePath, data, writeOptions);
-  } catch (error) {
-    if (error?.code === "EEXIST") {
-      return filePath;
-    }
-
-    throw error;
-  }
-
-  return filePath;
 }
 
 function stripBom(text) {
