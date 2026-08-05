@@ -4,19 +4,19 @@
 // Local file read/write utilities.
 //
 // Public API:
-// - moveFileToSync(filePath, toFilePath, options)
 // - copyFileToSync(filePath, toFilePath, options)
+// - moveFileToSync(filePath, toFilePath, options)
 // - removeFileSync(filePath)
-// - renameFileSync(filePath, name)
+// - renameFileSync(filePath, newName)
 //
 // - readFileTextSync(filePath, options)
 // - writeFileTextSync(filePath, text, options)
 // - readFileJsonSync(filePath, options)
-// - writeFileJsonSync(filePath, value, options)
+// - writeFileJsonSync(filePath, json, options)
 // - readFileBufferSync(filePath)
-// - writeFileBufferSync(filePath, buffer, options)
+// - writeFileBufferSync(filePath, buffer)
 // - readFileBase64Sync(filePath)
-// - writeFileBase64Sync(filePath, base64, options)
+// - writeFileBase64Sync(filePath, base64)
 //
 // Features:
 // - File move, copy, remove, and rename operations.
@@ -26,15 +26,15 @@
 //
 // Design:
 // - All methods are synchronous.
-// - Public read/write methods stay flat and do not call each other.
-// - Public read/write methods use internal low-level helpers.
-// - Write operations do not overwrite existing files by default.
+// - Public methods validate their inputs before calling Node's fs APIs.
+// - Write operations overwrite existing files by default.
+// - Copy, move, and rename operations do not overwrite targets by default.
 // - Cross-device file moves automatically fallback to copy and remove.
 // - Read methods throw when the target file does not exist.
 // - Write methods create missing parent directories automatically.
 //
 // Version: 0.1.0
-// Last modified: 2026-07-16
+// Last modified: 2026-08-05
 // -----------------------------------------------------------------------------
 
 import fs from "node:fs";
@@ -43,6 +43,53 @@ import nodePath from "node:path";
 // -----------------------------------------------------------------------------
 // Public API: File Operations
 // -----------------------------------------------------------------------------
+
+/**
+ * Copy a file to a new location.
+ *
+ * @example
+ * const copiedPath = copyFileToSync(
+ *   "/tmp/a.txt",
+ *   "/backup/a.txt",
+ * );
+ *
+ * @param {string} filePath
+ * Source file path.
+ *
+ * @param {string} toFilePath
+ * Target file path.
+ * Parent directories are created automatically.
+ *
+ * @param {Object} [options]
+ * Copy options.
+ *
+ * @param {boolean} [options.overwrite=false]
+ * Overwrite the target file if it already exists.
+ *
+ * @returns {string}
+ * Target file path.
+ */
+export function copyFileToSync(filePath, toFilePath, options = {}) {
+  assertExistingFile(filePath, "filePath");
+  assertFileIfExists(toFilePath, "toFilePath");
+
+  if (nodePath.resolve(filePath) === nodePath.resolve(toFilePath)) {
+    return toFilePath;
+  }
+
+  const { overwrite = false } = options;
+
+  if (fs.existsSync(toFilePath) && !overwrite) {
+    throw new Error(`target file already exists: ${toFilePath}`);
+  }
+
+  ensureDir(nodePath.dirname(toFilePath));
+
+  // Reaching here means the target is absent or overwriting is allowed.
+  fs.copyFileSync(filePath, toFilePath, 0);
+
+  return toFilePath;
+}
 
 /**
  * Move a file to a new location.
@@ -74,88 +121,31 @@ export function moveFileToSync(filePath, toFilePath, options = {}) {
   assertFileIfExists(toFilePath, "toFilePath");
 
   if (nodePath.resolve(filePath) === nodePath.resolve(toFilePath)) {
-    return filePath;
+    return toFilePath;
   }
 
   const { overwrite = false } = options;
 
-  if (fs.existsSync(toFilePath)) {
-    if (!overwrite) {
-      return toFilePath;
-    }
-
-    fs.rmSync(toFilePath);
+  if (fs.existsSync(toFilePath) && !overwrite) {
+    throw new Error(`target file already exists: ${toFilePath}`);
   }
 
-  const toDirPath = nodePath.dirname(toFilePath);
-  ensureDir(toDirPath);
+  ensureDir(nodePath.dirname(toFilePath));
 
   try {
-    // Moving within the same file system is fast and preserves metadata.
+    // Fast move within the same file system.
+    // renameSync does overwrite if the target file exists.
     fs.renameSync(filePath, toFilePath);
   } catch (error) {
     if (error?.code !== "EXDEV") {
       throw error;
     }
 
-    // Cross-device moves cannot use rename, so copy and then remove the source.
-    fs.copyFileSync(filePath, toFilePath);
-    fs.rmSync(filePath);
-  }
-
-  return toFilePath;
-}
-
-/**
- * Copy a file to a new location.
- *
- * @example
- * const copiedPath = copyFileToSync(
- *   "/tmp/a.txt",
- *   "/backup/a.txt",
- *   {
- *     overwrite: true,
- *   }
- * );
- *
- * @param {string} filePath
- * Source file path.
- *
- * @param {string} toFilePath
- * Target file path.
- * Parent directories are created automatically.
- *
- * @param {Object} [options]
- * Copy options.
- *
- * @param {boolean} [options.overwrite=false]
- * Overwrite the target file if it already exists.
- *
- * @returns {string}
- * Target file path.
- */
-export function copyFileToSync(filePath, toFilePath, options = {}) {
-  assertExistingFile(filePath, "filePath");
-  assertFileIfExists(toFilePath, "toFilePath");
-
-  if (nodePath.resolve(filePath) === nodePath.resolve(toFilePath)) {
-    return filePath;
-  }
-
-  const { overwrite = false } = options;
-
-  const toDirPath = nodePath.dirname(toFilePath);
-  ensureDir(toDirPath);
-
-  if (overwrite) {
+    // Cross-device move: copy first, then remove the source.
     // 0: overwrite the existing target file.
     // COPYFILE_EXCL: throw EEXIST if the target file already exists.
     fs.copyFileSync(filePath, toFilePath, 0);
-  } else {
-    if (fs.existsSync(toFilePath)) {
-      throw new Error(`target file already exists: ${toFilePath}`);
-    }
-    fs.copyFileSync(filePath, toFilePath);
+    fs.rmSync(filePath);
   }
 
   return toFilePath;
@@ -163,31 +153,18 @@ export function copyFileToSync(filePath, toFilePath, options = {}) {
 
 /**
  * Remove a file.
+ * Does nothing when the file does not exist.
  *
  * @example
  * removeFileSync("/tmp/a.txt");
  *
  * @param {string} filePath
  * File path to remove.
- *
- * @param {Object} [options]
- * @param {boolean} [options.missingOk=true]
- * Whether to ignore the error if the file does not exist.
- *
- * @returns {boolean}
- * Returns true after successful removal.
  */
-export function removeFileSync(filePath, { missingOk = true } = {}) {
-  try {
-    fs.rmSync(filePath);
-    return true;
-  } catch (error) {
-    if (missingOk && error?.code === "ENOENT") {
-      return false;
-    }
+export function removeFileSync(filePath) {
+  assertFileIfExists(filePath, "filePath");
 
-    throw error;
-  }
+  fs.rmSync(filePath, { force: true });
 }
 
 /**
@@ -202,43 +179,35 @@ export function removeFileSync(filePath, { missingOk = true } = {}) {
  * @param {string} filePath
  * Existing file path.
  *
- * @param {string} name
+ * @param {string} newName
  * New file name.
  * If the extension is omitted, the original extension is preserved.
  *
  * @returns {string}
  * New file path.
  */
-export function renameFileSync(filePath, name) {
+export function renameFileSync(filePath, newName) {
   assertExistingFile(filePath, "filePath");
-  assertNonBlankString(name, "name");
+  assertFileName(newName, "newName");
 
-  if (
-    nodePath.basename(name) !== name ||
-    nodePath.win32.basename(name) !== name
-  ) {
-    throw new Error(`invalid file name: ${name}`);
-  }
-
+  const dir = nodePath.dirname(filePath);
   const ext = nodePath.extname(filePath);
-  const fileName = nodePath.basename(filePath);
 
-  const newExt = nodePath.extname(name);
-  const newFileName = newExt ? name : `${name}${ext}`;
+  const targetExt = nodePath.extname(newName);
+  const targetName = targetExt ? newName : `${newName}${ext}`;
+  const targetPath = nodePath.join(dir, targetName);
 
-  if (fileName === newFileName) {
+  if (nodePath.resolve(targetPath) === nodePath.resolve(filePath)) {
     return filePath;
   }
 
-  const newFilePath = nodePath.join(nodePath.dirname(filePath), newFileName);
-
-  if (fs.existsSync(newFilePath)) {
-    throw new Error(`target file already exists: ${newFilePath}`);
+  if (fs.existsSync(targetPath)) {
+    throw new Error(`target file already exists: ${targetPath}`);
   }
 
-  fs.renameSync(filePath, newFilePath);
+  fs.renameSync(filePath, targetPath);
 
-  return newFilePath;
+  return targetPath;
 }
 
 // -----------------------------------------------------------------------------
@@ -278,9 +247,6 @@ export function readFileTextSync(filePath, options = {}) {
  * writeFileTextSync(
  *   "/tmp/config.txt",
  *   "hello",
- *   {
- *     overwrite: true,
- *   }
  * );
  *
  * @param {string} filePath
@@ -295,9 +261,6 @@ export function readFileTextSync(filePath, options = {}) {
  * @param {BufferEncoding} [options.encoding="utf8"]
  * Text encoding.
  *
- * @param {boolean} [options.overwrite=false]
- * Overwrite the existing file.
- *
  * @returns {string}
  * Target file path.
  */
@@ -305,9 +268,9 @@ export function writeFileTextSync(filePath, text, options = {}) {
   assertFileIfExists(filePath, "filePath");
   assertString(text, "text");
 
-  ensureDir(nodePath.dirname(filePath));
-
   const { encoding = "utf8" } = options;
+
+  ensureDir(nodePath.dirname(filePath));
 
   fs.writeFileSync(filePath, text, { encoding });
 
@@ -351,15 +314,12 @@ export function readFileJsonSync(filePath, options = {}) {
  *   {
  *     name: "test",
  *   },
- *   {
- *     overwrite: true,
- *   }
  * );
  *
  * @param {string} filePath
  * Target JSON file path.
  *
- * @param {any} value
+ * @param {any} json
  * JSON serializable value.
  *
  * @param {Object} [options]
@@ -374,27 +334,19 @@ export function readFileJsonSync(filePath, options = {}) {
  * @param {BufferEncoding} [options.encoding="utf8"]
  * Text encoding.
  *
- * @param {boolean} [options.overwrite=false]
- * Overwrite the existing file.
- *
  * @returns {string}
  * Target file path.
  */
-export function writeFileJsonSync(filePath, value, options = {}) {
+export function writeFileJsonSync(filePath, json, options = {}) {
   assertFileIfExists(filePath, "filePath");
 
-  const {
-    spaces = 2,
-    finalNewline = true,
-    encoding = "utf8",
-    overwrite = false,
-  } = options;
+  const { spaces = 2, finalNewline = true, encoding = "utf8" } = options;
 
-  // it will throw an error if value is not JSON serializable
-  // example: circular reference, BigInt, undefined, function, symbol
-  // don't catch the error here, let it bubble up to the caller
-  let text = JSON.stringify(value, null, spaces);
-
+  // JSON.stringify throws for circular references and BigInt values.
+  // For unsupported top-level values such as undefined, function, and symbol,
+  // it returns undefined instead.
+  // Don't catch the error here, let it bubble up to the caller
+  let text = JSON.stringify(json, null, spaces);
   if (text === undefined) {
     throw new Error("value is not JSON serializable");
   }
@@ -403,7 +355,11 @@ export function writeFileJsonSync(filePath, value, options = {}) {
     text += "\n";
   }
 
-  return writeFile(filePath, text, { encoding, overwrite });
+  ensureDir(nodePath.dirname(filePath));
+
+  fs.writeFileSync(filePath, text, { encoding });
+
+  return filePath;
 }
 
 // -----------------------------------------------------------------------------
@@ -443,22 +399,18 @@ export function readFileBufferSync(filePath) {
  * @param {Buffer|Uint8Array} buffer
  * Binary content.
  *
- * @param {Object} [options]
- * Write options.
- *
- * @param {boolean} [options.overwrite=false]
- * Overwrite the existing file.
- *
  * @returns {string}
  * Target file path.
  */
-export function writeFileBufferSync(filePath, buffer, options = {}) {
+export function writeFileBufferSync(filePath, buffer) {
   assertFileIfExists(filePath, "filePath");
   assertBuffer(buffer, "buffer");
 
-  const { overwrite = false } = options;
+  ensureDir(nodePath.dirname(filePath));
 
-  return writeFile(filePath, buffer, { overwrite });
+  fs.writeFileSync(filePath, buffer);
+
+  return filePath;
 }
 
 /**
@@ -495,54 +447,48 @@ export function readFileBase64Sync(filePath) {
  * Base64 encoded content.
  * Data URLs with prefix are supported.
  *
- * @param {Object} [options]
- * Write options.
- *
- * @param {boolean} [options.overwrite=false]
- * Overwrite the existing file.
- *
  * @returns {string}
  * Target file path.
  */
-export function writeFileBase64Sync(filePath, base64, options = {}) {
+export function writeFileBase64Sync(filePath, base64) {
   assertFileIfExists(filePath, "filePath");
+  const cleanBase64 = assertBase64(base64, "base64");
 
-  const clean = normalizeBase64(base64);
+  ensureDir(nodePath.dirname(filePath));
 
-  const { overwrite = false } = options;
+  fs.writeFileSync(filePath, Buffer.from(cleanBase64, "base64"));
 
-  return writeFile(filePath, Buffer.from(clean, "base64"), { overwrite });
+  return filePath;
 }
 
 // -----------------------------------------------------------------------------
-// Private Helpers
+// Private helpers
 // -----------------------------------------------------------------------------
 
-// Assertions
-
-function assertBuffer(value, fieldName = "value") {
-  if (!Buffer.isBuffer(value) && !(value instanceof Uint8Array)) {
-    throw new Error(`${fieldName} must be a Buffer or Uint8Array`);
+function assertFileName(name, fieldName = "name") {
+  if (typeof name !== "string" || name.trim() === "") {
+    throw new Error(`${fieldName} must be a non-blank string`);
   }
 
-  return value;
+  if (name.includes("\0")) {
+    throw new Error(`invalid ${fieldName}: ${name}`);
+  }
+
+  if (
+    name === "." ||
+    name === ".." ||
+    nodePath.basename(name) !== name ||
+    nodePath.win32.basename(name) !== name
+  ) {
+    throw new Error(`invalid ${fieldName}: ${name}`);
+  }
+
+  return name;
 }
 
-export function assertString(value, fieldName = "value") {
+function assertString(value, fieldName = "value") {
   if (typeof value !== "string") {
     throw new Error(`${fieldName} must be a string`);
-  }
-
-  return value;
-}
-
-function assertNonBlankString(value, fieldName = "value") {
-  if (
-    typeof value !== "string" ||
-    value.length === 0 ||
-    value.trim().length === 0
-  ) {
-    throw new Error(`${fieldName} must be a non-blank string`);
   }
 
   return value;
@@ -586,46 +532,48 @@ function assertFileIfExists(filePath, fieldName = "path") {
   return filePath;
 }
 
+function assertBuffer(buffer, fieldName = "value") {
+  if (!Buffer.isBuffer(buffer) && !(buffer instanceof Uint8Array)) {
+    throw new Error(`${fieldName} must be a Buffer or Uint8Array`);
+  }
+
+  return buffer;
+}
+
+function assertBase64(base64, fieldName = "base64") {
+  if (typeof base64 !== "string") {
+    throw new Error(`${fieldName} must be a string`);
+  }
+
+  const clean = base64.replace(/^data:[^,]*;base64,/, "").replace(/\s+/g, "");
+
+  if (clean.length % 4 === 1) {
+    throw new Error(`invalid ${fieldName}`);
+  }
+
+  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(clean)) {
+    throw new Error(`invalid ${fieldName}`);
+  }
+
+  return clean;
+}
+
 function ensureDir(dirPath) {
   assertPath(dirPath, "dirPath");
 
-  if (
-    dirPath === "/" ||
-    dirPath === "." ||
-    dirPath === "./" ||
-    dirPath === ".." ||
-    dirPath === "../" ||
-    dirPath === "~" ||
-    dirPath === "~/"
-  ) {
-    return;
+  if (fs.existsSync(dirPath)) {
+    if (!fs.statSync(dirPath).isDirectory()) {
+      throw new Error(`not a directory: ${dirPath}`);
+    }
+
+    return dirPath;
   }
 
-  if (!fs.existsSync(dirPath)) {
-    fs.mkdirSync(dirPath, { recursive: true });
-  }
+  fs.mkdirSync(dirPath, { recursive: true });
 
   return dirPath;
 }
 
 function stripBom(text) {
   return text.replace(/^\uFEFF/, "");
-}
-
-function normalizeBase64(base64) {
-  if (typeof base64 !== "string") {
-    throw new Error("invalid base64");
-  }
-
-  const clean = base64.replace(/^data:[^,]*;base64,/, "").replace(/\s+/g, "");
-
-  if (clean.length % 4 === 1) {
-    throw new Error("invalid base64");
-  }
-
-  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(clean)) {
-    throw new Error("invalid base64");
-  }
-
-  return clean;
 }

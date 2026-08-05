@@ -181,6 +181,16 @@ export function assertExistingFile(value, fieldName = "value") {
   return value;
 }
 
+function assertFileIfExists(filePath, fieldName = "path") {
+  assertPath(filePath, fieldName);
+
+  if (fs.existsSync(filePath) && !fs.statSync(filePath).isFile()) {
+    throw new Error(`not a file: ${filePath}`);
+  }
+
+  return filePath;
+}
+
 // -----------------------------------------------------------------------------
 // Private Helpers
 // -----------------------------------------------------------------------------
