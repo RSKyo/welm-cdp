@@ -18,17 +18,31 @@ import express from "express";
 
 export class ApiRouter {
   #router = express.Router();
+  #path = "/";
   #numberRe = /^[-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?$/i;
 
+  constructor(path) {
+    if (!path || typeof path !== "string" || path.trim() === "") {
+      throw new TypeError("path must be a non-empty string");
+    }
+
+    if (!path.startsWith("/")) {
+      throw new TypeError("path must start with '/'");
+    }
+
+    this.#path = path;
+  }
+
   /**
-   * Return the underlying Express router.
+   * Return router mount configuration.
    *
-   * Pass this value to `app.use()` or another Express router's `use()` method.
-   *
-   * @returns {import("express").Router}
+   * @returns {{ path: string, router: import("express").Router }}
    */
-  get handler() {
-    return this.#router;
+  get route() {
+    return {
+      path: this.#path,
+      router: this.#router,
+    };
   }
 
   /**
