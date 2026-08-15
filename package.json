@@ -19,7 +19,8 @@
   "author": "",
   "license": "UNLICENSED",
   "dependencies": {
-    "chrome-remote-interface": "^0.34.0"
+    "chrome-remote-interface": "^0.34.0",
+    "express": "^5.2.1"
   },
   "exports": {
     "./common/assert": "./common/assert.js",
