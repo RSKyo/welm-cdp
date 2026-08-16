@@ -60,7 +60,7 @@ export class ApiRouter {
     this.#router.get(path, async (req, res, next) => {
       try {
         const { data, options } = this.#resolveData(req);
-        const result = await handler(data, { req, res }, options);
+        const result = await handler({ data, req, res, options });
 
         if (res.headersSent) {
           return;
@@ -93,7 +93,7 @@ export class ApiRouter {
     this.#router.post(path, async (req, res, next) => {
       try {
         const { data, options } = this.#resolveData(req);
-        const result = await handler(data, options, { req, res });
+        const result = await handler({ data, req, res, options });
 
         if (res.headersSent) {
           return;

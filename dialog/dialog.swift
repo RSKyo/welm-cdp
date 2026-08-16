@@ -75,6 +75,7 @@ func runOpenPanel(
     app.activate(ignoringOtherApps: true)
 
     let panel = NSOpenPanel()
+
     panel.title = title
     panel.canChooseFiles = canChooseFiles
     panel.canChooseDirectories = canChooseDirectories
@@ -86,26 +87,19 @@ func runOpenPanel(
         panel.allowsOtherFileTypes = false
     }
 
-    panel.begin { response in
+    let response = panel.runModal()
 
-        defer {
-            NSApp.stop(nil)
-        }
-
-        guard response == .OK else {
-            exit(2)
-        }
-
-        if allowsMultipleSelection {
-            printPaths(panel.urls)
-        } else if let url = panel.url {
-            printPath(url)
-        }
-
-        exit(0)
+    guard response == .OK else {
+        exit(2)
     }
 
-    app.run()
+    if allowsMultipleSelection {
+        printPaths(panel.urls)
+    } else if let url = panel.url {
+        printPath(url)
+    }
+
+    exit(0)
 }
 
 func runSavePanel(title: String) {
