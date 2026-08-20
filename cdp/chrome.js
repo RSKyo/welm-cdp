@@ -52,8 +52,9 @@
 import CDP from "chrome-remote-interface";
 import { spawn } from "node:child_process";
 
-import { log } from "../common/log.js";
-import { config } from "../common/config.js";
+import { log } from "../infra/log.js";
+import { config } from "../infra/config.js";
+import { assertHttpUrl } from "../infra/assert.js";
 import {
   getCdpOptions,
   setCdpHost,
@@ -509,7 +510,7 @@ export async function reloadChromePage(keyword, options = {}) {
  * Throws if url is not a valid HTTP or HTTPS URL.
  */
 export async function openChromePage(url, options = {}) {
-  assertHttpUrl(url);
+  assertHttpUrl(url, "url");
 
   const startTime = Date.now();
 
@@ -578,7 +579,7 @@ export async function openChromePage(url, options = {}) {
  * Throws if url is not a valid HTTP or HTTPS URL.
  */
 export async function ensureChromePage(url, options = {}) {
-  assertHttpUrl(url);
+  assertHttpUrl(url, "url");
 
   const target = await findTarget(url, { ...options, throwIfNotFound: false });
 
@@ -636,31 +637,6 @@ export async function closeChromePage(keywords, options = {}) {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function parseUrl(value) {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  try {
-    return new URL(value);
-  } catch {
-    return null;
-  }
-}
-
-function assertHttpUrl(url) {
-  const parsedUrl = parseUrl(url);
-
-  if (
-    !parsedUrl ||
-    (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:")
-  ) {
-    throw new Error(`invalid URL: ${url}`);
-  }
-
-  return url;
 }
 
 function getChromeBin(options = {}) {

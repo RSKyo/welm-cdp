@@ -34,7 +34,13 @@ import fs from "node:fs";
 import { spawn, execFile } from "node:child_process";
 import { promisify } from "node:util";
 
-import { log } from "../common/log.js";
+import { log } from "../infra/log.js";
+import {
+  assertNonBlankString,
+  assertAbsolutePath,
+  assertExistingFile,
+  assertPort,
+} from "../infra/assert.js";
 import {
   isChromeReady,
   ensureChrome,
@@ -348,61 +354,6 @@ export async function startServerAndPage(
 // Private helpers
 // -----------------------------------------------------------------------------
 
-function assertNonBlankString(value, fieldName) {
-  if (typeof value !== "string" || value.trim() === "") {
-    throw new Error(`${fieldName} must be a non-empty string`);
-  }
-}
-
-function assertPort(port) {
-  if (!Number.isInteger(port) || port < 1 || port > 65535) {
-    throw new Error("port must be an integer between 1 and 65535");
-  }
-
-  return port;
-}
-
-const isNonBlankString = (value) =>
-  typeof value === "string" && value.trim() !== "";
-
-function assertPath(value, fieldName = "value") {
-  if (!isNonBlankString(value) || value.includes("\0")) {
-    throw new Error(`${fieldName} must be a valid path`);
-  }
-
-  return value;
-}
-
-function assertAbsolutePath(value, fieldName = "value") {
-  assertPath(value, fieldName);
-
-  if (!nodePath.isAbsolute(value)) {
-    throw new Error(`${fieldName} must be an absolute path`);
-  }
-
-  return value;
-}
-
-function assertExistingPath(value, fieldName = "value") {
-  assertPath(value, fieldName);
-
-  if (!fs.existsSync(value)) {
-    throw new Error(`${fieldName} does not exist: ${value}`);
-  }
-
-  return value;
-}
-
-function assertExistingFile(value, fieldName = "value") {
-  assertExistingPath(value, fieldName);
-
-  if (!fs.statSync(value).isFile()) {
-    throw new Error(`${fieldName} is not a file: ${value}`);
-  }
-
-  return value;
-}
-
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -412,7 +363,7 @@ function getServerOptions(options = {}) {
   const port = options.serverPort ?? defaultPort;
 
   assertNonBlankString(host, "host");
-  assertPort(port);
+  assertPort(port, "port");
 
   const serverUrl = `http://${host}:${port}/`;
   const testUrl = `${serverUrl}__ready`;

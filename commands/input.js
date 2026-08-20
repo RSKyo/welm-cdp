@@ -1,4 +1,4 @@
-import { assertNonBlankString } from "../../common/assert.js";
+import { assertNonBlankString } from "../infra/assert.js";
 import {
   keyAny,
   keyEnter,

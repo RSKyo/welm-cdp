@@ -1,5 +1,5 @@
-import { log } from "../../common/log.js";
-import { assertNonBlankString } from "../../common/assert.js";
+import { log } from "../infra/log.js";
+import { assertNonBlankString } from "../infra/assert.js";
 import { getClient, closeClients } from "../../cdp/client.js";
 import { getCdpOptions } from "../../cdp/target.js";
 

@@ -1,4 +1,4 @@
-import { assertNonBlankString, assertNumber } from "../../common/assert.js";
+import { assertNonBlankString, assertNumber } from "../infra/assert.js";
 import {
   removeMouseState,
   mouseMove,

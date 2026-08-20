@@ -1,4 +1,4 @@
-import { log } from "../../common/log.js";
+import { log } from "../infra/log.js";
 import {
   moveFileTo,
   copyFileTo,

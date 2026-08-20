@@ -1,9 +1,38 @@
-import fs from "node:fs";
-import nodePath from "node:path";
+import {
+  isAbsolutePath,
+  isArray,
+  isBoolean,
+  isBuffer,
+  isExistingDirectory,
+  isExistingFile,
+  isExistingPath,
+  isFunction,
+  isHttpUrl,
+  isInteger,
+  isNegative,
+  isNegativeInteger,
+  isNonBlankString,
+  isNonBlankStringArray,
+  isNonEmptyArray,
+  isNonEmptyNonBlankStringArray,
+  isNonEmptyPlainObjectArray,
+  isNonNegative,
+  isNonNegativeInteger,
+  isNonPositive,
+  isNonPositiveInteger,
+  isNullish,
+  isNumber,
+  isPath,
+  isPlainObject,
+  isPlainObjectArray,
+  isPositive,
+  isPositiveInteger,
+  isString,
+  isValidEmail,
+  isValidUrl,
+} from "./is.js";
 
-// -----------------------------------------------------------------------------
-// Public API
-// -----------------------------------------------------------------------------
+export * from "./is.js";
 
 // Required
 
@@ -11,8 +40,6 @@ export function assertRequired(value, fieldName = "value") {
   if (isNullish(value)) {
     throw new Error(`${fieldName} is required`);
   }
-
-  return value;
 }
 
 // String
@@ -21,16 +48,12 @@ export function assertString(value, fieldName = "value") {
   if (!isString(value)) {
     throw new Error(`${fieldName} must be a string`);
   }
-
-  return value;
 }
 
 export function assertNonBlankString(value, fieldName = "value") {
   if (!isNonBlankString(value)) {
     throw new Error(`${fieldName} must not be blank`);
   }
-
-  return value;
 }
 
 // Number
@@ -39,32 +62,60 @@ export function assertNumber(value, fieldName = "value") {
   if (!isNumber(value)) {
     throw new Error(`${fieldName} must be a finite number`);
   }
-
-  return value;
 }
 
 export function assertInteger(value, fieldName = "value") {
   if (!isInteger(value)) {
     throw new Error(`${fieldName} must be an integer`);
   }
-
-  return value;
 }
 
 export function assertPositive(value, fieldName = "value") {
   if (!isPositive(value)) {
     throw new Error(`${fieldName} must be a positive number`);
   }
-
-  return value;
 }
 
 export function assertNegative(value, fieldName = "value") {
   if (!isNegative(value)) {
     throw new Error(`${fieldName} must be a negative number`);
   }
+}
 
-  return value;
+export function assertNonNegative(value, fieldName = "value") {
+  if (!isNonNegative(value)) {
+    throw new Error(`${fieldName} must be a non-negative number`);
+  }
+}
+
+export function assertNonPositive(value, fieldName = "value") {
+  if (!isNonPositive(value)) {
+    throw new Error(`${fieldName} must be a non-positive number`);
+  }
+}
+
+export function assertPositiveInteger(value, fieldName = "value") {
+  if (!isPositiveInteger(value)) {
+    throw new Error(`${fieldName} must be a positive integer`);
+  }
+}
+
+export function assertNonNegativeInteger(value, fieldName = "value") {
+  if (!isNonNegativeInteger(value)) {
+    throw new Error(`${fieldName} must be a non-negative integer`);
+  }
+}
+
+export function assertNegativeInteger(value, fieldName = "value") {
+  if (!isNegativeInteger(value)) {
+    throw new Error(`${fieldName} must be a negative integer`);
+  }
+}
+
+export function assertNonPositiveInteger(value, fieldName = "value") {
+  if (!isNonPositiveInteger(value)) {
+    throw new Error(`${fieldName} must be a non-positive integer`);
+  }
 }
 
 // Boolean
@@ -73,8 +124,6 @@ export function assertBoolean(value, fieldName = "value") {
   if (!isBoolean(value)) {
     throw new Error(`${fieldName} must be a boolean`);
   }
-
-  return value;
 }
 
 // Array
@@ -83,24 +132,81 @@ export function assertArray(value, fieldName = "value") {
   if (!isArray(value)) {
     throw new Error(`${fieldName} must be an array`);
   }
-
-  return value;
 }
 
 export function assertNonEmptyArray(value, fieldName = "value") {
-  if (!isArray(value) || value.length === 0) {
+  if (!isNonEmptyArray(value)) {
     throw new Error(`${fieldName} must be a non-empty array`);
   }
+}
 
-  return value;
+export function assertNonBlankStringArray(value, fieldName = "value") {
+  if (!isNonBlankStringArray(value)) {
+    throw new Error(`${fieldName} must be an array of non-blank strings`);
+  }
+}
+
+export function assertNonEmptyNonBlankStringArray(value, fieldName = "value") {
+  if (!isNonEmptyNonBlankStringArray(value)) {
+    throw new Error(
+      `${fieldName} must be a non-empty array of non-blank strings`,
+    );
+  }
+}
+
+export function assertPlainObjectArray(value, fieldName = "value") {
+  if (!isPlainObjectArray(value)) {
+    throw new Error(`${fieldName} must be an array of plain objects`);
+  }
+}
+
+export function assertNonEmptyPlainObjectArray(value, fieldName = "value") {
+  if (!isNonEmptyPlainObjectArray(value)) {
+    throw new Error(`${fieldName} must be a non-empty array of plain objects`);
+  }
 }
 
 export function assertNonBlankStringOrArray(value, fieldName = "value") {
-  if (isNonBlankString(value) || isArray(value)) {
-    return value;
+  if (!isNonBlankString(value) && !isNonBlankStringArray(value)) {
+    throw new Error(
+      `${fieldName} must be a non-blank string or an array of non-blank strings`,
+    );
   }
+}
 
-  throw new Error(`${fieldName} must be a non-blank string or an array`);
+export function assertNonBlankStringOrNonEmptyArray(
+  value,
+  fieldName = "value",
+) {
+  if (!isNonBlankString(value) && !isNonEmptyNonBlankStringArray(value)) {
+    throw new Error(
+      `${fieldName} must be a non-blank string or a non-empty array of non-blank strings`,
+    );
+  }
+}
+
+export function assertPlainObjectOrArray(value, fieldName = "value") {
+  if (!isPlainObject(value) && !isPlainObjectArray(value)) {
+    throw new Error(
+      `${fieldName} must be a plain object or an array of plain objects`,
+    );
+  }
+}
+
+export function assertPlainObjectOrNonEmptyArray(value, fieldName = "value") {
+  if (!isPlainObject(value) && !isNonEmptyPlainObjectArray(value)) {
+    throw new Error(
+      `${fieldName} must be a plain object or a non-empty array of plain objects`,
+    );
+  }
+}
+
+// Function
+
+export function assertFunction(value, fieldName = "value") {
+  if (!isFunction(value)) {
+    throw new Error(`${fieldName} must be a function`);
+  }
 }
 
 // Object
@@ -109,8 +215,6 @@ export function assertPlainObject(value, fieldName = "value") {
   if (!isPlainObject(value)) {
     throw new Error(`${fieldName} must be a plain object`);
   }
-
-  return value;
 }
 
 // Email
@@ -119,8 +223,6 @@ export function assertEmail(value, fieldName = "value") {
   if (!isValidEmail(value)) {
     throw new Error(`${fieldName} must be a valid email address`);
   }
-
-  return value;
 }
 
 // URL
@@ -129,138 +231,110 @@ export function assertUrl(value, fieldName = "value") {
   if (!isValidUrl(value)) {
     throw new Error(`${fieldName} must be a valid URL`);
   }
-
-  return value;
 }
 
 export function assertHttpUrl(value, fieldName = "value") {
   if (!isHttpUrl(value)) {
     throw new Error(`${fieldName} must be an HTTP or HTTPS URL`);
   }
-
-  return value;
 }
 
 // Path
 
 export function assertPath(value, fieldName = "value") {
-  if (!isNonBlankString(value) || value.includes("\0")) {
+  if (!isPath(value)) {
     throw new Error(`${fieldName} must be a valid path`);
   }
-
-  return value;
 }
 
 export function assertAbsolutePath(value, fieldName = "value") {
-  assertPath(value, fieldName);
-
-  if (!nodePath.isAbsolute(value)) {
+  if (!isAbsolutePath(value)) {
     throw new Error(`${fieldName} must be an absolute path`);
   }
-
-  return value;
 }
 
 export function assertExistingPath(value, fieldName = "value") {
-  assertPath(value, fieldName);
-
-  if (!fs.existsSync(value)) {
-    throw new Error(`${fieldName} does not exist: ${value}`);
+  if (!isExistingPath(value)) {
+    throw new Error(`${fieldName} must be an existing path`);
   }
-
-  return value;
 }
 
 export function assertExistingFile(value, fieldName = "value") {
-  assertExistingPath(value, fieldName);
-
-  if (!fs.statSync(value).isFile()) {
-    throw new Error(`${fieldName} is not a file: ${value}`);
+  if (!isExistingFile(value)) {
+    throw new Error(`${fieldName} must be an existing file`);
   }
-
-  return value;
 }
 
-function assertFileIfExists(filePath, fieldName = "path") {
-  assertPath(filePath, fieldName);
+export function assertFileIfExists(value, fieldName = "value") {
+  assertPath(value, fieldName);
 
-  if (fs.existsSync(filePath) && !fs.statSync(filePath).isFile()) {
-    throw new Error(`not a file: ${filePath}`);
+  if (!isExistingPath(value)) return;
+
+  if (!isExistingFile(value)) {
+    throw new Error(`${fieldName} must be a file if it exists`);
   }
+}
 
-  return filePath;
+// Directory
+
+export function assertExistingDirectory(value, fieldName = "value") {
+  if (!isExistingDirectory(value)) {
+    throw new Error(`${fieldName} must be an existing directory`);
+  }
+}
+
+export function assertDirectoryIfExists(value, fieldName = "value") {
+  assertPath(value, fieldName);
+
+  if (!isExistingPath(value)) return;
+
+  if (!isExistingDirectory(value)) {
+    throw new Error(`${fieldName} must be a directory if it exists`);
+  }
 }
 
 // -----------------------------------------------------------------------------
-// Private Helpers
+// Other
 // -----------------------------------------------------------------------------
 
-// Nullish
-
-const isNullish = (value) => value === null || value === undefined;
-
-// String
-
-const isString = (value) => typeof value === "string";
-
-const isNonBlankString = (value) =>
-  typeof value === "string" && value.trim() !== "";
-
-// Number
-
-const isNumber = (value) => typeof value === "number" && Number.isFinite(value);
-
-const isInteger = (value) => isNumber(value) && Number.isInteger(value);
-
-const isPositive = (value) => isNumber(value) && value > 0;
-
-const isNegative = (value) => isNumber(value) && value < 0;
-
-// Boolean
-
-const isBoolean = (value) => typeof value === "boolean";
-
-// Array
-
-const isArray = (value) => Array.isArray(value);
-
-const isNonEmptyArray = (value) => Array.isArray(value) && value.length > 0;
-
-// Object
-
-const isPlainObject = (value) => {
-  if (Object.prototype.toString.call(value) !== "[object Object]") {
-    return false;
-  }
-
-  const proto = Object.getPrototypeOf(value);
-
-  return proto === Object.prototype || proto === null;
-};
-
-// Email
-
-const isValidEmail = (value) =>
-  typeof value === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-
-// URL
-
-function parseUrl(value) {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  try {
-    return new URL(value);
-  } catch {
-    return null;
+// Buffer
+export function assertBuffer(buffer, fieldName = "value") {
+  if (!isBuffer(buffer)) {
+    throw new Error(`${fieldName} must be a Buffer or Uint8Array`);
   }
 }
 
-const isValidUrl = (value) => parseUrl(value) !== null;
+// Base64
+export function assertBase64(base64, fieldName = "base64") {
+  if (!isString(base64)) {
+    throw new Error(`${fieldName} must be a string`);
+  }
 
-const isHttpUrl = (value) => {
-  const url = parseUrl(value);
+  const clean = base64.replace(/^data:[^,]*;base64,/, "").replace(/\s+/g, "");
 
-  return url?.protocol === "http:" || url?.protocol === "https:";
-};
+  if (clean.length % 4 === 1) {
+    throw new Error(`invalid ${fieldName}`);
+  }
+
+  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(clean)) {
+    throw new Error(`invalid ${fieldName}`);
+  }
+
+  return clean;
+}
+
+// Port
+export function assertPort(port, fieldName = "port") {
+  if (!isPort(port)) {
+    throw new Error(`${fieldName} must be an integer between 1 and 65535`);
+  }
+}
+
+// CDP Target ID
+export function assertCDPTargetId(targetId, fieldName = "targetId") {
+  if (!isCDPTargetId(targetId)) {
+    throw new Error(
+      `${fieldName} must be a valid CDP target ID (32-character hexadecimal string)`,
+    );
+  }
+}

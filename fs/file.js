@@ -39,6 +39,7 @@
 
 import fs from "node:fs";
 import nodePath from "node:path";
+import { assertString } from "../infra/assert";
 
 // -----------------------------------------------------------------------------
 // Public API: File Operations
@@ -484,14 +485,6 @@ function assertFileName(name, fieldName = "name") {
   }
 
   return name;
-}
-
-function assertString(value, fieldName = "value") {
-  if (typeof value !== "string") {
-    throw new Error(`${fieldName} must be a string`);
-  }
-
-  return value;
 }
 
 function assertPath(path, fieldName = "path") {

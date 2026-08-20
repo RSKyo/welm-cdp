@@ -38,9 +38,13 @@
 // -----------------------------------------------------------------------------
 
 import CDP from "chrome-remote-interface";
-import { config } from "../common/config.js";
-
-const targetIdRE = /^[0-9A-F]{32}$/i;
+import { config } from "../infra/config.js";
+import {
+  assertNonBlankString,
+  assertNonBlankStringOrNonEmptyArray,
+  assertPort,
+  isCDPTargetId,
+} from "../infra/assert.js";
 
 const configHostKeyPath = "cdp.host";
 const configPortKeyPath = "cdp.port";
@@ -100,7 +104,7 @@ export function setCdpHost(host = defaultHost) {
 }
 
 export function setCdpPort(port = defaultPort) {
-  assertPort(port);
+  assertPort(port, "port");
 
   config.set(configPortKeyPath, port);
   configPort = port;
@@ -245,7 +249,7 @@ export async function findTarget(keyword, options = {}) {
 
   const target =
     targets.find((target) => {
-      if (isTargetId(search)) {
+      if (isCDPTargetId(search)) {
         return target.targetId.toLowerCase() === search;
       }
 
@@ -299,20 +303,16 @@ export async function findTarget(keyword, options = {}) {
  * Throws if any keyword is not a non-empty string.
  */
 export async function findTargets(keywords, options = {}) {
+  assertNonBlankStringOrNonEmptyArray(keywords, "keywords");
+
   const targets = await listTargets(options);
 
   let search = Array.isArray(keywords) ? keywords : [keywords];
-  search = search.map((keyword) => {
-    if (typeof keyword !== "string" || keyword.trim() === "") {
-      throw new Error(`keyword must be a non-empty string`);
-    }
-
-    return keyword.trim().toLowerCase();
-  });
+  search = search.map((keyword) => keyword.trim().toLowerCase());
 
   return targets.filter((target) => {
     return search.some((keyword) => {
-      if (isTargetId(keyword)) {
+      if (isCDPTargetId(keyword)) {
         return target.targetId.toLowerCase() === keyword;
       }
 
@@ -466,24 +466,6 @@ export async function closeTarget(targetId, options = {}) {
 // -----------------------------------------------------------------------------
 // Private Helpers
 // -----------------------------------------------------------------------------
-
-function assertNonBlankString(value, fieldName) {
-  if (typeof value !== "string" || value.trim() === "") {
-    throw new Error(`${fieldName} must be a non-empty string`);
-  }
-}
-
-function assertPort(port) {
-  if (!Number.isInteger(port) || port < 1 || port > 65535) {
-    throw new Error("port must be an integer between 1 and 65535");
-  }
-
-  return port;
-}
-
-function isTargetId(value) {
-  return typeof value === "string" && targetIdRE.test(value);
-}
 
 function normalizeTarget(target) {
   return {

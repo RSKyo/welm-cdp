@@ -1,5 +1,5 @@
-import { log } from "../../common/log.js";
-import { assertHttpUrl, assertNonBlankString } from "../../common/assert.js";
+import { log } from "../infra/log.js";
+import { assertHttpUrl, assertNonBlankString } from "../infra/assert.js";
 import {
   getCdpOptions,
   listTargets,
