@@ -109,36 +109,6 @@ export function isPlainObject(value) {
   return proto === Object.prototype || proto === null;
 }
 
-// Email
-
-export function isValidEmail(value) {
-  return typeof value === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-}
-
-// URL
-
-function parseUrl(value) {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  try {
-    return new URL(value);
-  } catch {
-    return null;
-  }
-}
-
-export function isValidUrl(value) {
-  return parseUrl(value) !== null;
-}
-
-export function isHttpUrl(value) {
-  const url = parseUrl(value);
-
-  return url?.protocol === "http:" || url?.protocol === "https:";
-}
-
 // Path
 
 export function isPath(value) {
@@ -146,7 +116,7 @@ export function isPath(value) {
 }
 
 export function isAbsolutePath(value) {
-    return isPath(value) && nodePath.isAbsolute(value);
+  return isPath(value) && nodePath.isAbsolute(value);
 }
 
 export function isExistingPath(value) {
@@ -166,8 +136,64 @@ export function isExistingDirectory(value) {
 }
 
 // -----------------------------------------------------------------------------
+// Web
+// -----------------------------------------------------------------------------
+
+// Email
+
+export function isValidEmail(value) {
+  return typeof value === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+// URL
+
+export function isValidUrl(value) {
+  return parseUrl(value) !== null;
+}
+
+export function isHttpUrl(value) {
+  const url = parseUrl(value);
+
+  return url?.protocol === "http:" || url?.protocol === "https:";
+}
+
+function parseUrl(value) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  try {
+    return new URL(value);
+  } catch {
+    return null;
+  }
+}
+
+// HTML Element
+export function isHtmlElement(value) {
+  return value instanceof HTMLElement;
+}
+
+export function isElementNode(value) {
+  return (
+    value != null &&
+    value.nodeType === 1 &&
+    typeof value.nodeName === "string"
+  );
+}
+
+
+
+// -----------------------------------------------------------------------------
 // Other
 // -----------------------------------------------------------------------------
+
+export function isSameValueZero(a, b) {
+  // NaN != NaN, but we consider them equal in SameValueZero comparison
+  // a != a means a is NaN
+  // b != b means b is NaN
+  return a === b || (a !== a && b !== b);
+}
 
 // Buffer
 export function isBuffer(value) {
@@ -183,4 +209,12 @@ export function isPort(port) {
 export function isCDPTargetId(value) {
   const targetIdRE = /^[0-9A-F]{32}$/i;
   return isNonBlankString(value) && targetIdRE.test(value);
+}
+
+// Map and Set
+export function isMap(value) {
+  return Object.prototype.toString.call(value) === "[object Map]";
+}
+export function isSet(value) {
+  return Object.prototype.toString.call(value) === "[object Set]";
 }

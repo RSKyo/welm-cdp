@@ -217,28 +217,6 @@ export function assertPlainObject(value, fieldName = "value") {
   }
 }
 
-// Email
-
-export function assertEmail(value, fieldName = "value") {
-  if (!isValidEmail(value)) {
-    throw new Error(`${fieldName} must be a valid email address`);
-  }
-}
-
-// URL
-
-export function assertUrl(value, fieldName = "value") {
-  if (!isValidUrl(value)) {
-    throw new Error(`${fieldName} must be a valid URL`);
-  }
-}
-
-export function assertHttpUrl(value, fieldName = "value") {
-  if (!isHttpUrl(value)) {
-    throw new Error(`${fieldName} must be an HTTP or HTTPS URL`);
-  }
-}
-
 // Path
 
 export function assertPath(value, fieldName = "value") {
@@ -294,6 +272,62 @@ export function assertDirectoryIfExists(value, fieldName = "value") {
 }
 
 // -----------------------------------------------------------------------------
+// Web
+// -----------------------------------------------------------------------------
+
+// Email
+
+export function assertEmail(value, fieldName = "value") {
+  if (!isValidEmail(value)) {
+    throw new Error(`${fieldName} must be a valid email address`);
+  }
+}
+
+// URL
+
+export function assertUrl(value, fieldName = "value") {
+  if (!isValidUrl(value)) {
+    throw new Error(`${fieldName} must be a valid URL`);
+  }
+}
+
+export function assertHttpUrl(value, fieldName = "value") {
+  if (!isHttpUrl(value)) {
+    throw new Error(`${fieldName} must be an HTTP or HTTPS URL`);
+  }
+}
+
+// HTML Element
+
+export function assertHtmlElement(value, fieldName = "value") {
+  if (!isHtmlElement(value)) {
+    throw new Error(`${fieldName} must be an HTML element`);
+  }
+}
+
+export function assertElementNode(value, fieldName = "value") {
+  if (!isElementNode(value)) {
+    throw new Error(`${fieldName} must be an element node`);
+  }
+}
+
+export function assertSelectorOrHtmlElement(value, fieldName = "value") {
+  if (!isNonBlankString(value) && !isHtmlElement(value)) {
+    throw new Error(
+      `${fieldName} must be a non-blank selector string or an HTML element`,
+    );
+  }
+}
+
+export function assertSelectorOrElementNode(value, fieldName = "value") {
+  if (!isNonBlankString(value) && !isElementNode(value)) {
+    throw new Error(
+      `${fieldName} must be a non-blank selector string or an element node`,
+    );
+  }
+}
+
+// -----------------------------------------------------------------------------
 // Other
 // -----------------------------------------------------------------------------
 
@@ -337,4 +371,82 @@ export function assertCDPTargetId(targetId, fieldName = "targetId") {
       `${fieldName} must be a valid CDP target ID (32-character hexadecimal string)`,
     );
   }
+}
+
+// Key existence assertions
+export function assertKeyExists(key, target, fieldName = "key") {
+  assertNonBlankString(key, fieldName);
+
+  if (!hasKey(target, key)) {
+    throw new Error(`${fieldName} not found: ${key}`);
+  }
+}
+
+export function assertKeyNotExists(key, target, fieldName = "key") {
+  assertNonBlankString(key, fieldName);
+
+  if (hasKey(target, key)) {
+    throw new Error(`${fieldName} already exists: ${key}`);
+  }
+}
+
+function hasKey(target, key) {
+  if (isPlainObject(target)) {
+    return Object.hasOwn(target, key);
+  }
+
+  if (isMap(target)) {
+    return target.has(key);
+  }
+
+  throw new Error("target must be a plain object or a Map");
+}
+
+// Value existence assertions
+export function assertValueExists(value, target, fieldName = "value") {
+  if (!hasValue(target, value)) {
+    throw new Error(`${fieldName} not found: ${value}`);
+  }
+}
+
+export function assertValueNotExists(value, target, fieldName = "value") {
+  if (hasValue(target, value)) {
+    throw new Error(`${fieldName} already exists: ${value}`);
+  }
+}
+
+// SameValue means NaN = NaN, +0 != -0, and all other values are compared by ===
+// SameValue is used by: Object.is()
+// SameValueZero means NaN = NaN, +0 = -0, and all other values are compared by ===
+// SameValueZero is used by: Array.includes(), Set.has(), Map.has()
+function hasValue(target, value) {
+  if (isArray(target)) {
+    return target.includes(value);
+  }
+
+  if (isSet(target)) {
+    return target.has(value);
+  }
+
+  if (isPlainObject(target)) {
+    for (const key of Object.keys(target)) {
+      if (isSameValueZero(target[key], value)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  if (isMap(target)) {
+    for (const item of target.values()) {
+      if (isSameValueZero(item, value)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  throw new Error("target must be an Array, a Set, a Plain Object, or a Map");
 }
