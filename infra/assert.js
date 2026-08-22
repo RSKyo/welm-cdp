@@ -128,41 +128,29 @@ export function assertBoolean(value, fieldName = "value") {
 
 // Array
 
-export function assertArray(value, fieldName = "value") {
-  if (!isArray(value)) {
+export function assertArray(arr, fieldName = "arr") {
+  if (!isArray(arr)) {
     throw new Error(`${fieldName} must be an array`);
   }
 }
 
-export function assertNonEmptyArray(value, fieldName = "value") {
-  if (!isNonEmptyArray(value)) {
+export function assertNonEmptyArray(arr, fieldName = "arr") {
+  if (!isNonEmptyArray(arr)) {
     throw new Error(`${fieldName} must be a non-empty array`);
   }
 }
 
-export function assertNonBlankStringArray(value, fieldName = "value") {
-  if (!isNonBlankStringArray(value)) {
+export function assertNonBlankStringArray(arr, fieldName = "arr") {
+  if (!isNonBlankStringArray(arr)) {
     throw new Error(`${fieldName} must be an array of non-blank strings`);
   }
 }
 
-export function assertNonEmptyNonBlankStringArray(value, fieldName = "value") {
-  if (!isNonEmptyNonBlankStringArray(value)) {
+export function assertNonEmptyNonBlankStringArray(arr, fieldName = "arr") {
+  if (!isNonEmptyNonBlankStringArray(arr)) {
     throw new Error(
       `${fieldName} must be a non-empty array of non-blank strings`,
     );
-  }
-}
-
-export function assertPlainObjectArray(value, fieldName = "value") {
-  if (!isPlainObjectArray(value)) {
-    throw new Error(`${fieldName} must be an array of plain objects`);
-  }
-}
-
-export function assertNonEmptyPlainObjectArray(value, fieldName = "value") {
-  if (!isNonEmptyPlainObjectArray(value)) {
-    throw new Error(`${fieldName} must be a non-empty array of plain objects`);
   }
 }
 
@@ -185,20 +173,87 @@ export function assertNonBlankStringOrNonEmptyArray(
   }
 }
 
-export function assertPlainObjectOrArray(value, fieldName = "value") {
+export function assertPlainObjectArray(arr, fieldName = "arr", ...fields) {
+  if (!isPlainObjectArray(arr)) {
+    throw new Error(`${fieldName} must be an array of plain objects`);
+  }
+
+  assertFieldsInPlainObjectArray(arr, ...fields);
+}
+
+export function assertNonEmptyPlainObjectArray(
+  arr,
+  fieldName = "arr",
+  ...fields
+) {
+  if (!isNonEmptyPlainObjectArray(arr)) {
+    throw new Error(`${fieldName} must be a non-empty array of plain objects`);
+  }
+
+  assertFieldsInPlainObjectArray(arr, ...fields);
+}
+
+export function assertPlainObjectOrArray(
+  value,
+  fieldName = "value",
+  ...fields
+) {
   if (!isPlainObject(value) && !isPlainObjectArray(value)) {
     throw new Error(
       `${fieldName} must be a plain object or an array of plain objects`,
     );
   }
+
+  const [objs, isArray] = normalizeArray(value);
+  assertFieldsInPlainObjectArray(objs, ...fields);
 }
 
-export function assertPlainObjectOrNonEmptyArray(value, fieldName = "value") {
+export function assertPlainObjectOrNonEmptyArray(
+  value,
+  fieldName = "value",
+  ...fields
+) {
   if (!isPlainObject(value) && !isNonEmptyPlainObjectArray(value)) {
     throw new Error(
       `${fieldName} must be a plain object or a non-empty array of plain objects`,
     );
   }
+
+  const [objs, isArray] = normalizeArray(value);
+  assertFieldsInPlainObjectArray(objs, ...fields);
+}
+
+function assertFieldsInPlainObjectArray(arr, ...fields) {
+  for (const obj of arr) {
+    for (const field of fields) {
+      assertKeyExists(field, obj, "field");
+    }
+  }
+}
+
+export function assertNoDuplicateValues(values, fieldName = "values") {
+  assertArray(values, fieldName);
+
+  const seen = new Set(values);
+  if (seen.size !== values.length) {
+    throw new Error(`${fieldName} contains duplicate values`);
+  }
+}
+
+export function assertNoDuplicatePlainObjectValues(
+  objs,
+  valueField,
+  fieldName = "values",
+) {
+  assertPlainObjectArray(objs, fieldName);
+  assertNonBlankString(valueField, "valueField");
+  for (const item of objs) {
+    assertKeyExists(valueField, item, "valueField");
+  }
+
+  const valueFieldValues = objs.map((item) => item[valueField]);
+
+  assertNoDuplicateValues(valueFieldValues, fieldName);
 }
 
 // Function
@@ -211,9 +266,21 @@ export function assertFunction(value, fieldName = "value") {
 
 // Object
 
-export function assertPlainObject(value, fieldName = "value") {
-  if (!isPlainObject(value)) {
+export function assertPlainObject(obj, fieldName = "obj", ...fields) {
+  if (!isPlainObject(obj)) {
     throw new Error(`${fieldName} must be a plain object`);
+  }
+
+  for (const field of fields) {
+    assertKeyExists(field, obj, "field");
+  }
+}
+
+export function assertStringPlainObject(obj, fieldName = "obj") {
+  assertPlainObject(obj, fieldName);
+
+  for (const [key, value] of Object.entries(obj)) {
+    assertString(value, `${fieldName}.${key}`);
   }
 }
 
@@ -305,6 +372,7 @@ export function assertHtmlElement(value, fieldName = "value") {
   }
 }
 
+// Assertions related to iframe and DOM element nodes
 export function assertElementNode(value, fieldName = "value") {
   if (!isElementNode(value)) {
     throw new Error(`${fieldName} must be an element node`);
@@ -449,4 +517,12 @@ function hasValue(target, value) {
   }
 
   throw new Error("target must be an Array, a Set, a Plain Object, or a Map");
+}
+
+// ----------------------------------------------
+// Private helper functions
+// ----------------------------------------------
+
+function normalizeArray(value) {
+  return Array.isArray(value) ? [value, true] : [[value], false];
 }

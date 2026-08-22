@@ -1,6 +1,30 @@
 import fs from "node:fs";
 import nodePath from "node:path";
 
+export function isNullishOrEmpty(value) {
+  if (isNullish(value)) {
+    return true;
+  }
+
+  if (isString(value)) {
+    return value.trim() === "";
+  }
+
+  if (isArray(value)) {
+    return value.length === 0;
+  }
+
+  if (isMap(value) || isSet(value)) {
+    return value.size === 0;
+  }
+
+  if (isPlainObject(value)) {
+    return Object.keys(value).length === 0;
+  }
+
+  return false;
+}
+
 // Nullish
 
 export function isNullish(value) {
@@ -171,18 +195,14 @@ function parseUrl(value) {
 
 // HTML Element
 export function isHtmlElement(value) {
-  return value instanceof HTMLElement;
+  return value != null && value instanceof HTMLElement;
 }
 
 export function isElementNode(value) {
   return (
-    value != null &&
-    value.nodeType === 1 &&
-    typeof value.nodeName === "string"
+    value != null && value.nodeType === 1 && typeof value.nodeName === "string"
   );
 }
-
-
 
 // -----------------------------------------------------------------------------
 // Other
