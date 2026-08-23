@@ -425,6 +425,17 @@ export function assertBase64(base64, fieldName = "base64") {
   return clean;
 }
 
+// Time in seconds (with up to 3 decimal places)
+export function assertTimeInSeconds(seconds, fieldName = "seconds") {
+  assertNonNegative(seconds, fieldName);
+
+  const decimalLength = String(seconds).split(".")[1]?.length ?? 0;
+
+  if (decimalLength > 3) {
+    throw new Error(`${fieldName} must have at most 3 decimal places`);
+  }
+}
+
 // Port
 export function assertPort(port, fieldName = "port") {
   if (!isPort(port)) {
