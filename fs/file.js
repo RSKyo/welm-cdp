@@ -39,7 +39,7 @@
 
 import fs from "node:fs";
 import nodePath from "node:path";
-import { assertString } from "../infra/assert";
+import { assertString } from "../infra/assert.js";
 
 // -----------------------------------------------------------------------------
 // Public API: File Operations
