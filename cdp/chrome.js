@@ -455,10 +455,7 @@ export async function reloadChromePage(keyword, options = {}) {
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
 
-  log.progressDone(
-    `Page reloaded (${elapsed}s) ${target.url}`,
-    options,
-  );
+  log.progressDone(`Page reloaded (${elapsed}s) ${target.url}`, options);
 
   return target;
 }
@@ -695,7 +692,11 @@ async function waitChromeReady(options = {}) {
     await sleep(interval);
   }
 
-  throw new Error(`Chrome CDP service not ready after ${timeout}ms`);
+  throw new Error(
+    `Chrome CDP service not ready after ${timeout}ms: ` +
+      `chromeBin=${config.get("cdp.chromeBin")}, ` +
+      `userDataDir=${config.get("cdp.userDataDir")}`,
+  );
 }
 
 /**
