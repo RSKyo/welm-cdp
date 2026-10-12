@@ -120,11 +120,7 @@ export function formatTime(seconds, full = false) {
     return null;
   }
 
-  if (
-    typeof seconds !== "number" ||
-    !Number.isFinite(seconds) ||
-    seconds < 0
-  ) {
+  if (typeof seconds !== "number" || !Number.isFinite(seconds) || seconds < 0) {
     throw new Error(`invalid time value: ${seconds}`);
   }
 
@@ -148,9 +144,7 @@ export function formatTime(seconds, full = false) {
   }
 
   const fractionText =
-    milliseconds > 0
-      ? `.${millisecondText}`
-      : "";
+    milliseconds > 0 ? `.${millisecondText.replace(/0+$/, "")}` : "";
 
   if (hour > 0) {
     return (
@@ -162,11 +156,7 @@ export function formatTime(seconds, full = false) {
   }
 
   if (minute > 0) {
-    return (
-      `${minute}:` +
-      `${String(second).padStart(2, "0")}` +
-      fractionText
-    );
+    return `${minute}:` + `${String(second).padStart(2, "0")}` + fractionText;
   }
 
   return `${second}${fractionText}`;
