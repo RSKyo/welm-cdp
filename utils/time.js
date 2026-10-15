@@ -115,7 +115,13 @@ export function parseTime(value) {
  * @throws {Error}
  * Throws if `seconds` is not a non-negative finite number.
  */
-export function formatTime(seconds, full = false) {
+export function formatTime(
+  seconds,
+  {
+    full = false,
+    fixedMilliseconds = false,
+  } = {},
+) {
   if (seconds == null) {
     return null;
   }
@@ -143,8 +149,11 @@ export function formatTime(seconds, full = false) {
     return `${hourText}:${minuteText}:${secondText}.${millisecondText}`;
   }
 
-  const fractionText =
-    milliseconds > 0 ? `.${millisecondText.replace(/0+$/, "")}` : "";
+  const fractionText = fixedMilliseconds
+    ? `.${millisecondText}`
+    : milliseconds > 0
+      ? `.${millisecondText.replace(/0+$/, "")}`
+      : "";
 
   if (hour > 0) {
     return (
