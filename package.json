@@ -27,6 +27,7 @@
     "./infra/assert": "./infra/assert.js",
     "./infra/config": "./infra/config.js",
     "./infra/log": "./infra/log.js",
+    "./infra/process": "./infra/process.js",
     "./cdp/chrome": "./cdp/chrome.js",
     "./cdp/client": "./cdp/client.js",
     "./cdp/runtime": "./cdp/runtime.js",
