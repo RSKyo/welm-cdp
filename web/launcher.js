@@ -221,6 +221,7 @@ export async function startServer(absoluteServerFilePath, options = {}) {
   }
 
   log.progressDone(`Web server started: ${serverUrl}`, options);
+  log.info(`add --verbose to see server output.`);
 
   return true;
 }

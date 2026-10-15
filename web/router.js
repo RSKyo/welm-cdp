@@ -66,6 +66,11 @@ export class ApiRouter {
           return;
         }
 
+        // `undefined` means the handler returned no API result.
+        //
+        // Handlers that write directly to `res` must ensure the response has actually
+        // started before returning. For streams, prefer `await pipeline(stream, res)`;
+        // `stream.pipe(res)` may return before `res.headersSent` becomes true.
         if (result === undefined) {
           res.status(204).end();
           return;
